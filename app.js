@@ -77,6 +77,7 @@ const state = {
 // Task modal working state
 const modal = {
   editingIssue:      null,
+  editingProject:    null,
   selectedAssignees: [], // array of unified member objects
   pickerOpen:        false,
 };
@@ -917,8 +918,15 @@ async function handleCloseIssue() {
 // Project (Milestone) Modal
 // ============================================================
 
-function openProjectModal() {
-  el('pm-name').value = ''; el('pm-client').value = ''; el('pm-desc').value = ''; el('pm-due').value = '';
+function openProjectModal(ms = null) {
+  modal.editingProject = ms;
+  const { client, description } = parseProjectClient(ms ? (ms.description || '') : '');
+  el('pm-heading').textContent = ms ? 'Edit Project' : 'New Project';
+  el('pm-save').textContent    = ms ? 'Save Changes' : 'Create Project';
+  el('pm-name').value   = ms ? ms.title : '';
+  el('pm-client').value = client;
+  el('pm-desc').value   = description;
+  el('pm-due').value    = ms && ms.due_on ? ms.due_on.slice(0, 10) : '';
   el('pm-error').classList.add('hidden');
   el('project-modal').classList.remove('hidden');
   setTimeout(() => el('pm-name').focus(), 50);
@@ -942,8 +950,9 @@ async function saveProject() {
   const name = el('pm-name').value.trim();
   if (!name) { showError('pm-error', 'Project name is required.'); el('pm-name').focus(); return; }
 
+  const isEditing = !!modal.editingProject;
   const btn = el('pm-save');
-  btn.disabled = true; btn.textContent = 'Creating…';
+  btn.disabled = true; btn.textContent = isEditing ? 'Saving…' : 'Creating…';
   el('pm-error').classList.add('hidden');
 
   try {
@@ -952,11 +961,15 @@ async function saveProject() {
     const desc   = el('pm-desc').value.trim();
     const due    = el('pm-due').value;
     const fullDesc = [client ? `Client: ${client}` : '', desc].filter(Boolean).join('\n\n');
-    if (fullDesc) payload.description = fullDesc;
+    payload.description = fullDesc;
     if (due)  payload.due_on = `${due}T00:00:00Z`;
+    else if (isEditing) payload.due_on = null;
 
-    const res = await ghFetch(`repos/${state.owner}/${state.repo}/milestones`,
-      state.token, { method: 'POST', body: JSON.stringify(payload) });
+    const url = isEditing
+      ? `repos/${state.owner}/${state.repo}/milestones/${modal.editingProject.number}`
+      : `repos/${state.owner}/${state.repo}/milestones`;
+    const res = await ghFetch(url,
+      state.token, { method: isEditing ? 'PATCH' : 'POST', body: JSON.stringify(payload) });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       const detail = data.message || '';
@@ -976,16 +989,21 @@ async function saveProject() {
       throw new Error(detail || `HTTP ${res.status}`);
     }
     const ms = await res.json();
-    state.milestones.unshift(ms);
+    if (isEditing) {
+      const idx = state.milestones.findIndex(m => m.number === ms.number);
+      if (idx >= 0) state.milestones[idx] = ms;
+    } else {
+      state.milestones.unshift(ms);
+    }
     refreshProjectOptions(String(ms.number));
     populateFilterSelects();
     closeProjectModal();
     if (state.view === 'projects') renderProjects();
-    toast(`Project "${ms.title}" created`, 'success');
+    toast(`Project "${ms.title}" ${isEditing ? 'updated' : 'created'}`, 'success');
   } catch (err) {
     showError('pm-error', err.message);
   } finally {
-    btn.disabled = false; btn.textContent = 'Create Project';
+    btn.disabled = false; btn.textContent = isEditing ? 'Save Changes' : 'Create Project';
   }
 }
 
@@ -1230,9 +1248,14 @@ function buildProjectCard(ms, issues) {
   // Header
   const hdr = document.createElement('div'); hdr.className = 'project-header';
 
+  const hdrTop = document.createElement('div'); hdrTop.className = 'project-header-top';
   const nameEl = document.createElement('div'); nameEl.className = 'project-name';
   nameEl.textContent = ms.title;
-  hdr.appendChild(nameEl);
+  const editBtn = document.createElement('button');
+  editBtn.className = 'project-edit-btn'; editBtn.textContent = 'Edit';
+  editBtn.addEventListener('click', e => { e.stopPropagation(); openProjectModal(ms); });
+  hdrTop.appendChild(nameEl); hdrTop.appendChild(editBtn);
+  hdr.appendChild(hdrTop);
 
   if (client) {
     const clientEl = document.createElement('div'); clientEl.className = 'project-client';

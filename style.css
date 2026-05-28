@@ -392,7 +392,20 @@ a { color: var(--green-dark); }
   background: var(--green-bg);
   border-bottom: 1px solid var(--gray-200);
 }
-.project-name  { font-weight: 700; font-size: 15px; color: var(--gray-800); margin-bottom: 3px; }
+.project-header-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 3px; }
+.project-name  { font-weight: 700; font-size: 15px; color: var(--gray-800); }
+.project-edit-btn {
+  flex-shrink: 0;
+  font-size: 11px; font-weight: 600;
+  padding: 2px 9px;
+  border-radius: var(--radius);
+  border: 1px solid var(--gray-300);
+  background: #fff;
+  color: var(--gray-600);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.project-edit-btn:hover { background: var(--green-dark); color: #fff; border-color: var(--green-dark); }
 .project-client { font-size: 12px; color: var(--green-dark); font-weight: 600; margin-bottom: 3px; }
 .project-meta  { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
 .project-count { font-size: 11px; color: var(--gray-500); }
