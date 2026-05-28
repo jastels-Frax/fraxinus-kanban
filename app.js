@@ -126,6 +126,7 @@ function bindUIEvents() {
   el('new-task-btn').addEventListener('click', () => openTaskModal());
   el('team-btn').addEventListener('click', openTeamModal);
   el('new-project-tab-btn').addEventListener('click', openProjectModal);
+  el('projects-sort-select').addEventListener('change', renderProjects);
 
   // Task modal
   el('tm-x').addEventListener('click', closeTaskModal);
@@ -1193,13 +1194,30 @@ function renderProjects() {
     grid.appendChild(p); return;
   }
 
-  state.milestones
-    .slice()
-    .sort((a, b) => a.title.localeCompare(b.title))
-    .forEach(ms => {
-      const issues = state.issues.filter(i => i.milestone && i.milestone.number === ms.number);
-      grid.appendChild(buildProjectCard(ms, issues));
-    });
+  const sortBy = el('projects-sort-select').value;
+  const sorted = state.milestones.slice().sort((a, b) => {
+    if (sortBy === 'client') {
+      const ca = parseProjectClient(a.description || '').client.toLowerCase();
+      const cb = parseProjectClient(b.description || '').client.toLowerCase();
+      return ca.localeCompare(cb) || a.title.localeCompare(b.title);
+    }
+    if (sortBy === 'due') {
+      const da = a.due_on || 'zzzz'; // no date sorts last
+      const db = b.due_on || 'zzzz';
+      return da.localeCompare(db) || a.title.localeCompare(b.title);
+    }
+    if (sortBy === 'tasks') {
+      const na = state.issues.filter(i => i.milestone && i.milestone.number === a.number).length;
+      const nb = state.issues.filter(i => i.milestone && i.milestone.number === b.number).length;
+      return nb - na || a.title.localeCompare(b.title);
+    }
+    return a.title.localeCompare(b.title); // default: name
+  });
+
+  sorted.forEach(ms => {
+    const issues = state.issues.filter(i => i.milestone && i.milestone.number === ms.number);
+    grid.appendChild(buildProjectCard(ms, issues));
+  });
 }
 
 function buildProjectCard(ms, issues) {

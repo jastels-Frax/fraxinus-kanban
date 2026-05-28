@@ -356,8 +356,17 @@ a { color: var(--green-dark); }
 .projects-toolbar {
   padding: 10px 14px 0;
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
 }
+.projects-sort {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--gray-600);
+}
+.field-select-sm { padding: 4px 8px; font-size: 13px; }
 .projects-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));

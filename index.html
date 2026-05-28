@@ -311,6 +311,15 @@
 
   <div id="projects-view" class="view-container hidden">
     <div class="projects-toolbar">
+      <div class="projects-sort">
+        <label for="projects-sort-select">Sort by:</label>
+        <select id="projects-sort-select" class="field-select field-select-sm">
+          <option value="name">Name (A–Z)</option>
+          <option value="client">Client (A–Z)</option>
+          <option value="due">Due Date</option>
+          <option value="tasks">Task Count</option>
+        </select>
+      </div>
       <button class="btn btn-new-task" id="new-project-tab-btn">&#xff0b; New Project</button>
     </div>
     <div id="projects-grid" class="projects-grid"></div>
