@@ -123,8 +123,8 @@ a { color: var(--green-dark); }
 .header-center { flex: 0 0 auto; }
 .header-right  { flex: 1; display: flex; justify-content: flex-end; align-items: center; gap: 6px; }
 
-.nav-brand { display: flex; align-items: center; margin-right: 16px; }
-.nav-brand img { height: 48px; width: auto; display: block; }
+.nav-brand { display: flex; align-items: center; margin-right: 16px; overflow: hidden; max-height: 48px; }
+.nav-brand img { height: 48px !important; max-height: 48px; width: auto; display: block; }
 
 .view-toggle {
   display: flex;
@@ -917,7 +917,8 @@ a { color: var(--green-dark); }
    RESPONSIVE
    ============================================================ */
 @media (max-width: 600px) {
-  .nav-brand img { height: 36px; }
+  .nav-brand { max-height: 36px; }
+  .nav-brand img { height: 36px !important; max-height: 36px; }
 }
 
 @media (max-width: 700px) {
