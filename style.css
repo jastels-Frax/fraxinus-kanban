@@ -273,7 +273,7 @@ a { color: var(--green-dark); }
   cursor: pointer;
   transition: box-shadow 0.15s, transform 0.12s;
   border: 1px solid var(--gray-200);
-  border-left: 3px solid var(--gray-300);
+  border-left: 5px solid var(--gray-300);
   user-select: none;
 }
 .card:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
@@ -281,6 +281,14 @@ a { color: var(--green-dark); }
 .card[data-priority="Priority: High"]   { border-left-color: var(--red); }
 .card[data-priority="Priority: Medium"] { border-left-color: var(--yellow); }
 .card[data-priority="Priority: Low"]    { border-left-color: var(--gray-400); }
+
+.priority-badge {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 8px; white-space: nowrap;
+}
+.priority-badge[data-priority="Priority: High"]   { background: #fde8ea; color: var(--red); }
+.priority-badge[data-priority="Priority: Medium"] { background: #fef3c7; color: #92650a; }
+.priority-badge[data-priority="Priority: Low"]    { background: var(--gray-100); color: var(--gray-500); }
 
 .card-title {
   font-size: 13px;

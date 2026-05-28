@@ -600,7 +600,7 @@ function buildCard(issue) {
 
   const taskType = issue.labels.find(l => TASK_TYPE_LABELS.includes(l.name));
   const due = parseDueDate(issue.body);
-  if (taskType || due) {
+  if (taskType || due || priority) {
     const footer = document.createElement('div'); footer.className = 'card-footer';
     if (taskType) {
       const chip = document.createElement('span');
@@ -609,6 +609,13 @@ function buildCard(issue) {
       chip.style.background = `#${hex}`;
       chip.style.color = isLightHex(hex) ? '#1a1a1a' : '#fff';
       footer.appendChild(chip);
+    }
+    if (priority) {
+      const priEl = document.createElement('span');
+      priEl.className = 'priority-badge';
+      priEl.dataset.priority = priority;
+      priEl.textContent = priority.replace('Priority: ', '');
+      footer.appendChild(priEl);
     }
     if (due) {
       const dueEl = document.createElement('span'); dueEl.className = 'due-date';
