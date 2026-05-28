@@ -126,7 +126,7 @@ function bindUIEvents() {
   el('settings-btn').addEventListener('click', () => el('setup-modal').classList.remove('hidden'));
   el('new-task-btn').addEventListener('click', () => openTaskModal());
   el('team-btn').addEventListener('click', openTeamModal);
-  el('new-project-tab-btn').addEventListener('click', openProjectModal);
+  el('new-project-tab-btn').addEventListener('click', () => openProjectModal());
   el('projects-sort-select').addEventListener('change', renderProjects);
 
   // Task modal
@@ -134,7 +134,7 @@ function bindUIEvents() {
   el('tm-cancel').addEventListener('click', closeTaskModal);
   el('tm-save').addEventListener('click', saveTask);
   el('tm-close-issue').addEventListener('click', handleCloseIssue);
-  el('tm-new-project-btn').addEventListener('click', openProjectModal);
+  el('tm-new-project-btn').addEventListener('click', () => openProjectModal());
   el('task-modal').addEventListener('click', e => { if (e.target === el('task-modal')) closeTaskModal(); });
 
   // Assignee picker
