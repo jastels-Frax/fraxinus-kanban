@@ -1448,7 +1448,7 @@ async function exportPDF() {
     doc.setFillColor(...rgb);
     doc.rect(MARGIN, curY, CW, 6, 'F');
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.5);
+    doc.setFontSize(9);
     doc.setTextColor(255, 255, 255);
     doc.text(`${label}  (${tasks.length})`, MARGIN + 3, curY + 4);
     curY += 7;
