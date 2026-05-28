@@ -8,9 +8,9 @@ const STAGE_LABELS = [
   'Proposal / Scoping',
   'Fieldwork',
   'Reporting / Permitting',
-  'Miscellaneous',
   'Review / QA',
   'Delivered / Closed',
+  'Miscellaneous',
 ];
 
 const STAGE_COLORS = {
@@ -734,6 +734,7 @@ function openTaskModal(issue = null, defaultStage = null) {
   refreshProjectOptions();
 
   const saveBtn  = el('tm-save');
+  saveBtn.disabled = false;
   const closeBtn = el('tm-close-issue');
   const ghLink   = el('tm-gh-link');
   el('tm-error').classList.add('hidden');
