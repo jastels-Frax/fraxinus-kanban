@@ -350,6 +350,53 @@ a { color: var(--green-dark); }
 }
 .people-empty { grid-column: 1/-1; color: var(--gray-500); padding: 32px 0; text-align: center; }
 
+/* ============================================================
+   PROJECTS VIEW
+   ============================================================ */
+.projects-toolbar {
+  padding: 10px 14px 0;
+  display: flex;
+  justify-content: flex-end;
+}
+.projects-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px;
+  padding: 10px 14px 14px;
+  overflow-y: auto;
+  height: calc(100% - 46px);
+  align-content: start;
+}
+.projects-empty { grid-column: 1/-1; color: var(--gray-500); padding: 32px 0; text-align: center; }
+.project-card {
+  background: #fff;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--gray-200);
+  overflow: hidden;
+  cursor: pointer;
+  transition: box-shadow 0.14s, transform 0.12s;
+}
+.project-card:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
+.project-header {
+  padding: 14px 16px 12px;
+  background: var(--green-bg);
+  border-bottom: 1px solid var(--gray-200);
+}
+.project-name  { font-weight: 700; font-size: 15px; color: var(--gray-800); margin-bottom: 3px; }
+.project-client { font-size: 12px; color: var(--green-dark); font-weight: 600; margin-bottom: 3px; }
+.project-meta  { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
+.project-count { font-size: 11px; color: var(--gray-500); }
+.project-due   { font-size: 11px; color: var(--gray-500); }
+.project-desc {
+  padding: 10px 16px;
+  font-size: 12px;
+  color: var(--gray-600);
+  border-bottom: 1px solid var(--gray-100);
+  line-height: 1.5;
+}
+.project-stages { padding: 10px 16px 12px; display: flex; flex-direction: column; gap: 5px; }
+
 .person-card {
   background: #fff;
   border-radius: var(--radius-lg);
@@ -938,6 +985,7 @@ a { color: var(--green-dark); }
   .column-body { overflow-y: visible; }
   .filter-bar { flex-wrap: wrap; height: auto; padding: 8px 12px; gap: 8px; }
   .people-grid { grid-template-columns: 1fr; }
+  .projects-grid { grid-template-columns: 1fr; }
   .btn-new-task span { display: none; }
   .field-row { grid-template-columns: 1fr; }
   .form-row  { grid-template-columns: 1fr; }

@@ -125,6 +125,7 @@ function bindUIEvents() {
   el('settings-btn').addEventListener('click', () => el('setup-modal').classList.remove('hidden'));
   el('new-task-btn').addEventListener('click', () => openTaskModal());
   el('team-btn').addEventListener('click', openTeamModal);
+  el('new-project-tab-btn').addEventListener('click', openProjectModal);
 
   // Task modal
   el('tm-x').addEventListener('click', closeTaskModal);
@@ -978,6 +979,7 @@ async function saveProject() {
     refreshProjectOptions(String(ms.number));
     populateFilterSelects();
     closeProjectModal();
+    if (state.view === 'projects') renderProjects();
     toast(`Project "${ms.title}" created`, 'success');
   } catch (err) {
     showError('pm-error', err.message);
@@ -1177,6 +1179,92 @@ function switchView(view) {
   document.querySelectorAll('.view-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.view === view));
   el('board-view').classList.toggle('hidden', view !== 'board');
   el('people-view').classList.toggle('hidden', view !== 'people');
+  el('projects-view').classList.toggle('hidden', view !== 'projects');
+  if (view === 'projects') renderProjects();
+}
+
+function renderProjects() {
+  const grid = el('projects-grid');
+  grid.innerHTML = '';
+
+  if (state.milestones.length === 0) {
+    const p = document.createElement('p');
+    p.className = 'projects-empty'; p.textContent = 'No projects yet. Click + New Project to create one.';
+    grid.appendChild(p); return;
+  }
+
+  state.milestones
+    .slice()
+    .sort((a, b) => a.title.localeCompare(b.title))
+    .forEach(ms => {
+      const issues = state.issues.filter(i => i.milestone && i.milestone.number === ms.number);
+      grid.appendChild(buildProjectCard(ms, issues));
+    });
+}
+
+function buildProjectCard(ms, issues) {
+  const { client, description } = parseProjectClient(ms.description || '');
+
+  const card = document.createElement('div');
+  card.className = 'project-card'; card.setAttribute('tabindex', '0');
+  card.title = `Filter board to ${ms.title}`;
+
+  // Header
+  const hdr = document.createElement('div'); hdr.className = 'project-header';
+
+  const nameEl = document.createElement('div'); nameEl.className = 'project-name';
+  nameEl.textContent = ms.title;
+  hdr.appendChild(nameEl);
+
+  if (client) {
+    const clientEl = document.createElement('div'); clientEl.className = 'project-client';
+    clientEl.textContent = client;
+    hdr.appendChild(clientEl);
+  }
+
+  const metaEl = document.createElement('div'); metaEl.className = 'project-meta';
+  const cntEl = document.createElement('span'); cntEl.className = 'project-count';
+  cntEl.textContent = `${issues.length} open task${issues.length !== 1 ? 's' : ''}`;
+  metaEl.appendChild(cntEl);
+  if (ms.due_on) {
+    const dueEl = document.createElement('span'); dueEl.className = 'project-due';
+    dueEl.textContent = `Due ${ms.due_on.slice(0, 10)}`;
+    metaEl.appendChild(dueEl);
+  }
+  hdr.appendChild(metaEl);
+  card.appendChild(hdr);
+
+  // Description
+  if (description) {
+    const descEl = document.createElement('div'); descEl.className = 'project-desc';
+    descEl.textContent = description;
+    card.appendChild(descEl);
+  }
+
+  // Stage breakdown
+  const stages = document.createElement('div'); stages.className = 'project-stages';
+  STAGE_LABELS.forEach(stage => {
+    const n = issues.filter(i => i.labels.some(l => l.name === stage)).length;
+    if (!n) return;
+    const row = document.createElement('div'); row.className = 'person-stage-row';
+    const dot = document.createElement('span'); dot.className = 'stage-dot'; dot.style.background = STAGE_COLORS[stage];
+    const nm  = document.createElement('span'); nm.className = 'stage-name'; nm.textContent = stage;
+    const cnt = document.createElement('span'); cnt.className = 'stage-count'; cnt.textContent = n;
+    row.appendChild(dot); row.appendChild(nm); row.appendChild(cnt);
+    stages.appendChild(row);
+  });
+  if (stages.children.length) card.appendChild(stages);
+
+  // Click → filter board to this project
+  const filterTo = () => {
+    el('milestone-filter').value = ms.title;
+    state.filters.milestone = ms.title;
+    el('filter-badge').classList.remove('hidden');
+    switchView('board'); renderBoard();
+  };
+  card.addEventListener('click', filterTo);
+  card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); filterTo(); } });
+  return card;
 }
 
 // ============================================================
