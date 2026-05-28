@@ -837,6 +837,7 @@ a { color: var(--green-dark); }
 }
 .toast.success { background: var(--green-dark); }
 .toast.error   { background: var(--red-dark); }
+.toast.warning { background: #92650a; }
 @keyframes toast-in { from { transform: translateY(10px); opacity: 0; } to { transform: none; opacity: 1; } }
 
 /* ============================================================

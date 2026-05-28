@@ -825,6 +825,13 @@ async function saveTask() {
   if (taskType) labels.push(taskType);
   if (priority) labels.push(priority);
 
+  // Non-blocking warnings for missing optional fields
+  const warnings = [];
+  if (!modal.selectedAssignees.length) warnings.push('no one is assigned');
+  if (!taskType)  warnings.push('no task type selected');
+  if (!priority)  warnings.push('no priority set');
+  if (warnings.length) toast(`Heads up — ${warnings.join('; ')}`, 'warning');
+
   // Split assignees: GitHub users → `assignees` field; local-only → issue body
   const githubLogins   = modal.selectedAssignees.filter(m => m.type === 'github').map(m => m.login);
   const localNames     = modal.selectedAssignees.filter(m => m.type === 'local').map(m => m.name);
