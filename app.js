@@ -7,21 +7,21 @@
 const STAGE_LABELS = [
   'Proposal / Scoping',
   'Fieldwork',
-  'Reporting',
-  'Permitting',
+  'GIS / Mapping',
+  'Reporting / Permitting',
   'Review / QA',
   'Miscellaneous',
   'Delivered / Closed',
 ];
 
 const STAGE_COLORS = {
-  'Proposal / Scoping': '#0052cc',
-  'Fieldwork':          '#006b75',
-  'Reporting':          '#b08800',
-  'Permitting':         '#5319e7',
-  'Review / QA':        '#d93f0b',
-  'Miscellaneous':      '#0891b2',
-  'Delivered / Closed': '#666666',
+  'Proposal / Scoping':    '#0052cc',
+  'Fieldwork':             '#006b75',
+  'GIS / Mapping':         '#1d76db',
+  'Reporting / Permitting':'#b08800',
+  'Review / QA':           '#d93f0b',
+  'Miscellaneous':         '#0891b2',
+  'Delivered / Closed':    '#666666',
 };
 
 const TASK_TYPE_LABELS = [
@@ -33,13 +33,13 @@ const PRIORITY_LABELS = [
 ];
 
 const REQUIRED_LABELS = [
-  { name: 'Proposal / Scoping', color: '0052cc', description: 'Stage: proposal and scoping' },
-  { name: 'Fieldwork',          color: '006b75', description: 'Stage: fieldwork' },
-  { name: 'Reporting',          color: 'b08800', description: 'Stage: reporting' },
-  { name: 'Permitting',         color: '5319e7', description: 'Stage: permitting' },
-  { name: 'Review / QA',        color: 'd93f0b', description: 'Stage: review and QA' },
-  { name: 'Miscellaneous',      color: '0891b2', description: 'Stage: miscellaneous tasks' },
-  { name: 'Delivered / Closed', color: '666666', description: 'Stage: delivered or closed' },
+  { name: 'Proposal / Scoping',    color: '0052cc', description: 'Stage: proposal and scoping' },
+  { name: 'Fieldwork',             color: '006b75', description: 'Stage: fieldwork' },
+  { name: 'GIS / Mapping',         color: '1d76db', description: 'Stage: GIS and mapping' },
+  { name: 'Reporting / Permitting',color: 'b08800', description: 'Stage: reporting and permitting' },
+  { name: 'Review / QA',           color: 'd93f0b', description: 'Stage: review and QA' },
+  { name: 'Miscellaneous',         color: '0891b2', description: 'Stage: miscellaneous tasks' },
+  { name: 'Delivered / Closed',    color: '666666', description: 'Stage: delivered or closed' },
   { name: 'Fieldwork',               color: '0075ca', description: 'Task type: fieldwork' },
   { name: 'Reporting',               color: '008672', description: 'Task type: reporting' },
   { name: 'Proposal',                color: '7057ff', description: 'Task type: proposal' },
