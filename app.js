@@ -32,6 +32,27 @@ const PRIORITY_LABELS = [
   'Priority: High', 'Priority: Medium', 'Priority: Low',
 ];
 
+// All labels the board depends on — auto-created on first connect
+const REQUIRED_LABELS = [
+  { name: 'Proposal / Scoping',      color: '0052cc', description: 'Stage: proposal and scoping' },
+  { name: 'Permitting / Regulatory', color: '5319e7', description: 'Stage: permitting and regulatory' },
+  { name: 'Field Scheduled',         color: '006b75', description: 'Stage: field work scheduled' },
+  { name: 'Field Active',            color: '2d5a27', description: 'Stage: field work in progress' },
+  { name: 'Reporting / Drafting',    color: 'b08800', description: 'Stage: reporting and drafting' },
+  { name: 'Review / QA',             color: 'd93f0b', description: 'Stage: review and QA' },
+  { name: 'Delivered / Closed',      color: '666666', description: 'Stage: delivered or closed' },
+  { name: 'Fieldwork',               color: '0075ca', description: 'Task type: fieldwork' },
+  { name: 'Reporting',               color: '008672', description: 'Task type: reporting' },
+  { name: 'Proposal',                color: '7057ff', description: 'Task type: proposal' },
+  { name: 'Permitting',              color: 'b60205', description: 'Task type: permitting' },
+  { name: 'GIS / Data',              color: '1d76db', description: 'Task type: GIS or data' },
+  { name: 'Admin',                   color: 'aaaaaa', description: 'Task type: admin' },
+  { name: 'Other',                   color: 'c2e0c6', description: 'Task type: other' },
+  { name: 'Priority: High',          color: 'd73a4a', description: 'Priority: high' },
+  { name: 'Priority: Medium',        color: 'b08800', description: 'Priority: medium' },
+  { name: 'Priority: Low',           color: '999999', description: 'Priority: low' },
+];
+
 // ============================================================
 // Application State
 // ============================================================
@@ -173,6 +194,8 @@ async function handleSetupSave() {
     localStorage.setItem('gh_repo',  repo);
     el('setup-modal').classList.add('hidden');
     el('app').classList.remove('hidden');
+    // Ensure all required labels exist before first use
+    await ensureLabelsExist();
     loadData();
   } catch (err) {
     showError('setup-error', `Connection failed: ${err.message}`);
@@ -243,6 +266,8 @@ async function loadData() {
     populateFilterSelects();
     renderBoard();
     renderPeople();
+    // Silently create any missing labels in the background
+    ensureLabelsExist().catch(() => {});
   } catch (err) {
     if (err.message !== 'unauthorized' && err.message !== 'rate-limited') {
       toast(`Failed to load: ${err.message}`, 'error');
@@ -250,6 +275,21 @@ async function loadData() {
   } finally {
     showLoading(false);
   }
+}
+
+async function ensureLabelsExist() {
+  const existing = await ghFetchPaginated(`repos/${state.owner}/${state.repo}/labels`).catch(() => []);
+  const existingNames = new Set(existing.map(l => l.name));
+  const missing = REQUIRED_LABELS.filter(l => !existingNames.has(l.name));
+  if (missing.length === 0) return;
+
+  await Promise.all(missing.map(l =>
+    ghFetch(`repos/${state.owner}/${state.repo}/labels`, state.token, {
+      method: 'POST',
+      body: JSON.stringify({ name: l.name, color: l.color, description: l.description }),
+    }).catch(() => {})
+  ));
+  toast(`Set up ${missing.length} label${missing.length !== 1 ? 's' : ''} in your repository`, 'success');
 }
 
 // ============================================================
@@ -661,13 +701,17 @@ async function saveTask() {
   if (taskType) labels.push(taskType);
   if (priority) labels.push(priority);
 
+  // Build payload — omit milestone entirely when not set (GitHub POST doesn't accept null)
   const payload = {
     title,
     body:      buildIssueBody(due, bodyText),
     labels,
-    milestone: msNum ? Number(msNum) : null,
     assignees: modal.selectedAssignees.map(a => a.login),
   };
+  if (msNum) payload.milestone = Number(msNum);
+
+  const isEditing = !!modal.editingIssue;
+  const issueNumber = modal.editingIssue ? modal.editingIssue.number : null;
 
   const btn = el('tm-save');
   btn.disabled = true;
@@ -676,8 +720,10 @@ async function saveTask() {
 
   try {
     let res;
-    if (modal.editingIssue) {
-      res = await ghFetch(`repos/${state.owner}/${state.repo}/issues/${modal.editingIssue.number}`,
+    if (isEditing) {
+      // PATCH accepts milestone: null to clear it
+      if (!msNum) payload.milestone = null;
+      res = await ghFetch(`repos/${state.owner}/${state.repo}/issues/${issueNumber}`,
         state.token, { method: 'PATCH', body: JSON.stringify(payload) });
     } else {
       res = await ghFetch(`repos/${state.owner}/${state.repo}/issues`,
@@ -685,11 +731,13 @@ async function saveTask() {
     }
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      throw new Error(data.message || `HTTP ${res.status}`);
+      // Surface a clear message for the most common failure case
+      const hint = (data.errors || []).map(e => e.value ? `"${e.value}" not found` : e.code).join(', ');
+      throw new Error((data.message || `HTTP ${res.status}`) + (hint ? ` — ${hint}` : ''));
     }
     const updated = await res.json();
-    if (modal.editingIssue) {
-      const idx = state.issues.findIndex(i => i.number === modal.editingIssue.number);
+    if (isEditing) {
+      const idx = state.issues.findIndex(i => i.number === issueNumber);
       if (idx >= 0) state.issues[idx] = updated;
       toast('Task updated', 'success');
     } else {
@@ -702,10 +750,10 @@ async function saveTask() {
     renderPeople();
   } catch (err) {
     showError('tm-error', `Save failed: ${err.message}`);
-  } finally {
     btn.disabled = false;
-    btn.textContent = modal.editingIssue ? 'Save Changes' : 'Create Task';
+    btn.textContent = isEditing ? 'Save Changes' : 'Create Task';
   }
+  // Note: no finally — success path calls closeTaskModal() which hides the button
 }
 
 async function handleCloseIssue() {
@@ -1020,7 +1068,8 @@ function allAssignees(issue) {
 
 function avatarUrl(user, size = 40) {
   const base = user.avatar_url || `https://github.com/${user.login}.png`;
-  return `${base}&s=${size}`;
+  const sep  = base.includes('?') ? '&' : '?';
+  return `${base}${sep}s=${size}`;
 }
 
 function parseDueDate(body) {
