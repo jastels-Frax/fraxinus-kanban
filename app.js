@@ -133,6 +133,7 @@ function bindUIEvents() {
   el('settings-btn').addEventListener('click', () => el('setup-modal').classList.remove('hidden'));
   el('new-task-btn').addEventListener('click', () => openTaskModal());
   el('team-btn').addEventListener('click', openTeamModal);
+  el('export-pdf-btn').addEventListener('click', exportPDF);
   el('new-project-tab-btn').addEventListener('click', () => openProjectModal());
   el('projects-sort-select').addEventListener('change', renderProjects);
 
@@ -1348,6 +1349,112 @@ function buildProjectCard(ms, issues) {
   card.addEventListener('click', filterTo);
   card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); filterTo(); } });
   return card;
+}
+
+// ============================================================
+// PDF Export
+// ============================================================
+
+function exportPDF() {
+  if (!state.issues.length) { toast('No open tasks to export.', 'warning'); return; }
+
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+
+  const overdueCount = state.issues.filter(i => {
+    const d = parseDueDate(i.body);
+    return d && new Date(`${d}T00:00:00`) < today;
+  }).length;
+
+  const highCount = state.issues.filter(i => i.labels.some(l => l.name === 'Priority: High')).length;
+
+  const priorityGroups = [
+    { label: 'High Priority',   key: 'Priority: High',   color: '#d73a4a' },
+    { label: 'Medium Priority', key: 'Priority: Medium', color: '#b08800' },
+    { label: 'Low Priority',    key: 'Priority: Low',    color: '#888888' },
+    { label: 'No Priority',     key: null,               color: '#cccccc' },
+  ];
+
+  const dateStr = today.toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' });
+
+  let html = `
+    <div class="pr-header">
+      <img src="FRAXINUS%20LOGO%20Compass%20Color%20with%20Black%20Text%20REV01.png" class="pr-logo" alt="Fraxinus" />
+      <div class="pr-header-text">
+        <div class="pr-title">Current State of Affairs</div>
+        <div class="pr-date">Generated ${dateStr}</div>
+      </div>
+    </div>
+    <div class="pr-summary">
+      <div class="pr-stat"><span class="pr-stat-num">${state.issues.length}</span><span class="pr-stat-label">Open Tasks</span></div>
+      <div class="pr-stat${highCount ? ' pr-stat-alert' : ''}"><span class="pr-stat-num">${highCount}</span><span class="pr-stat-label">High Priority</span></div>
+      <div class="pr-stat${overdueCount ? ' pr-stat-alert' : ''}"><span class="pr-stat-num">${overdueCount}</span><span class="pr-stat-label">Overdue</span></div>
+      <div class="pr-stat"><span class="pr-stat-num">${state.milestones.length}</span><span class="pr-stat-label">Active Projects</span></div>
+    </div>
+  `;
+
+  priorityGroups.forEach(({ label, key, color }) => {
+    const tasks = state.issues
+      .filter(i => key
+        ? i.labels.some(l => l.name === key)
+        : !PRIORITY_LABELS.some(p => i.labels.some(l => l.name === p))
+      )
+      .sort((a, b) => {
+        const sa = STAGE_LABELS.indexOf((a.labels.find(l => STAGE_LABELS.includes(l.name)) || {}).name || '');
+        const sb = STAGE_LABELS.indexOf((b.labels.find(l => STAGE_LABELS.includes(l.name)) || {}).name || '');
+        return (sa === -1 ? 99 : sa) - (sb === -1 ? 99 : sb);
+      });
+
+    if (!tasks.length) return;
+
+    html += `
+      <div class="pr-section">
+        <div class="pr-section-hdr" style="border-left-color:${color}">
+          ${esc(label)} <span class="pr-section-count">${tasks.length}</span>
+        </div>
+        <table class="pr-table">
+          <thead><tr>
+            <th>Task</th><th>Stage</th><th>Project</th><th>Assignees</th><th>Type</th><th>Effort</th><th>Due Date</th>
+          </tr></thead>
+          <tbody>
+    `;
+
+    tasks.forEach(issue => {
+      const stageLabel = issue.labels.find(l => STAGE_LABELS.includes(l.name));
+      const stage      = stageLabel ? stageLabel.name : '—';
+      const stageColor = STAGE_COLORS[stage] || '#aaa';
+      const project    = issue.milestone ? issue.milestone.title : '—';
+      const assignees  = allIssueAssignees(issue).map(m => m.name).join(', ') || '—';
+      const typeLabel  = issue.labels.find(l => TASK_TYPE_LABELS.includes(l.name));
+      const taskType   = typeLabel ? typeLabel.name : '—';
+      const { effort } = parseBodyParts(issue.body);
+      const due        = parseDueDate(issue.body);
+      const isOverdue  = due && new Date(`${due}T00:00:00`) < today;
+
+      html += `
+        <tr>
+          <td class="pr-task-title">${esc(issue.title)}</td>
+          <td><span class="pr-dot" style="background:${stageColor}"></span>${esc(stage)}</td>
+          <td>${esc(project)}</td>
+          <td>${esc(assignees)}</td>
+          <td>${esc(taskType)}</td>
+          <td>${effort ? esc(effort) : '—'}</td>
+          <td${isOverdue ? ' class="pr-overdue"' : ''}>${due || '—'}</td>
+        </tr>
+      `;
+    });
+
+    html += `</tbody></table></div>`;
+  });
+
+  const report = el('print-report');
+  report.innerHTML = html;
+  window.print();
+  window.addEventListener('afterprint', () => { report.innerHTML = ''; }, { once: true });
+}
+
+function esc(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 // ============================================================
