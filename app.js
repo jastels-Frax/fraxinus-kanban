@@ -1382,7 +1382,7 @@ async function exportPDF() {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   const dateStr = today.toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' });
-  doc.text('Current State of Affairs', PAGE_W - MARGIN, 10, { align: 'right' });
+  doc.text('Task Overview', PAGE_W - MARGIN, 10, { align: 'right' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
   doc.text(dateStr, PAGE_W - MARGIN, 17, { align: 'right' });
