@@ -123,8 +123,8 @@ a { color: var(--green-dark); }
 .header-center { flex: 0 0 auto; }
 .header-right  { flex: 1; display: flex; justify-content: flex-end; align-items: center; gap: 6px; }
 
-.logo-icon { font-size: 20px; line-height: 1; }
-.logo-text { font-size: 17px; font-weight: 700; letter-spacing: -0.2px; }
+.nav-brand { display: flex; align-items: center; margin-right: 16px; }
+.nav-brand img { height: 48px; width: auto; display: block; }
 
 .view-toggle {
   display: flex;
@@ -916,6 +916,10 @@ a { color: var(--green-dark); }
 /* ============================================================
    RESPONSIVE
    ============================================================ */
+@media (max-width: 600px) {
+  .nav-brand img { height: 36px; }
+}
+
 @media (max-width: 700px) {
   body { overflow: auto; height: auto; }
   .view-container { height: auto; overflow: visible; }
@@ -924,7 +928,6 @@ a { color: var(--green-dark); }
   .column-body { overflow-y: visible; }
   .filter-bar { flex-wrap: wrap; height: auto; padding: 8px 12px; gap: 8px; }
   .people-grid { grid-template-columns: 1fr; }
-  .logo-text { display: none; }
   .btn-new-task span { display: none; }
   .field-row { grid-template-columns: 1fr; }
   .form-row  { grid-template-columns: 1fr; }
