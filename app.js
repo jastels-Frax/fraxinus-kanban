@@ -1163,7 +1163,7 @@ function parseBodyParts(body) {
   let due = null;
   const localAssignees = [];
   text = text.replace(/^Due:\s*(\d{4}-\d{2}-\d{2})[ \t]*\r?\n?/m,   (_, d) => { due = d; return ''; });
-  text = text.replace(/^Local-Assignee:\s*(.+?)[ \t]*\r?\n?/mg, (_, n) => { localAssignees.push(n.trim()); return ''; });
+  text = text.replace(/^Local-Assignee:\s*(.+)[ \t]*\r?\n?/mg, (_, n) => { localAssignees.push(n.trim()); return ''; });
   return { due, localAssignees, description: text.trim() };
 }
 
