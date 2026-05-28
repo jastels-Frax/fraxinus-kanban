@@ -144,6 +144,14 @@ function bindUIEvents() {
   el('tm-new-project-btn').addEventListener('click', () => openProjectModal());
   addBackdropClose('task-modal', closeTaskModal);
 
+  // Effort unit toggle
+  el('tm-effort-toggle').addEventListener('click', e => {
+    const btn = e.target.closest('.effort-unit');
+    if (!btn) return;
+    el('tm-effort-toggle').querySelectorAll('.effort-unit').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+
   // Assignee picker
   el('tm-ap-trigger').addEventListener('click', e => { e.stopPropagation(); toggleAssigneePicker(); });
   el('tm-ap-trigger').addEventListener('keydown', e => {
@@ -553,7 +561,13 @@ function buildColumn(stage, issues) {
     e.preventDefault(); col.classList.remove('drop-active');
     if (state.draggedIssue) moveIssueToStage(state.draggedIssue, stage);
   });
-  issues.forEach(issue => body.appendChild(buildCard(issue)));
+  issues.slice()
+    .sort((a, b) => {
+      const pa = PRIORITY_LABELS.findIndex(p => a.labels.some(l => l.name === p));
+      const pb = PRIORITY_LABELS.findIndex(p => b.labels.some(l => l.name === p));
+      return (pa === -1 ? 99 : pa) - (pb === -1 ? 99 : pb);
+    })
+    .forEach(issue => body.appendChild(buildCard(issue)));
   col.appendChild(body);
 
   const footer = document.createElement('div'); footer.className = 'column-footer';
@@ -613,7 +627,8 @@ function buildCard(issue) {
 
   const taskType = issue.labels.find(l => TASK_TYPE_LABELS.includes(l.name));
   const due = parseDueDate(issue.body);
-  if (taskType || due || priority) {
+  const { effort } = parseBodyParts(issue.body);
+  if (taskType || due || priority || effort) {
     const footer = document.createElement('div'); footer.className = 'card-footer';
     if (taskType) {
       const chip = document.createElement('span');
@@ -629,6 +644,12 @@ function buildCard(issue) {
       priEl.dataset.priority = priority;
       priEl.textContent = priority.replace('Priority: ', '');
       footer.appendChild(priEl);
+    }
+    if (effort) {
+      const efEl = document.createElement('span');
+      efEl.className = 'effort-chip';
+      efEl.textContent = `⏱ ${effort}`;
+      footer.appendChild(efEl);
     }
     if (due) {
       const dueEl = document.createElement('span'); dueEl.className = 'due-date';
@@ -780,9 +801,18 @@ function openTaskModal(issue = null, defaultStage = null) {
     const pri = issue.labels.find(l => PRIORITY_LABELS.includes(l.name));
     el('tm-priority').value = pri ? pri.name : '';
     modal.selectedAssignees = [...allIssueAssignees(issue)];
-    const { due, description } = parseBodyParts(issue.body);
+    const { due, effort, description } = parseBodyParts(issue.body);
     el('tm-due').value  = due || '';
     el('tm-body').value = description;
+    if (effort) {
+      const efM = effort.match(/^([\d.]+)\s*(days?|hours?)$/i);
+      el('tm-effort').value = efM ? efM[1] : '';
+      const unit = efM && efM[2].toLowerCase().startsWith('h') ? 'hours' : 'days';
+      el('tm-effort-toggle').querySelectorAll('.effort-unit').forEach(b => b.classList.toggle('active', b.dataset.unit === unit));
+    } else {
+      el('tm-effort').value = '';
+      el('tm-effort-toggle').querySelectorAll('.effort-unit').forEach((b, i) => b.classList.toggle('active', i === 0));
+    }
   } else {
     el('tm-heading').textContent = 'New Task';
     el('tm-number').classList.add('hidden');
@@ -796,6 +826,8 @@ function openTaskModal(issue = null, defaultStage = null) {
     el('tm-priority').value  = '';
     el('tm-due').value       = '';
     el('tm-body').value      = '';
+    el('tm-effort').value    = '';
+    el('tm-effort-toggle').querySelectorAll('.effort-unit').forEach((b, i) => b.classList.toggle('active', i === 0));
   }
 
   updateAssigneeDisplay();
@@ -833,6 +865,9 @@ async function saveTask() {
   const priority = el('tm-priority').value;
   const due      = el('tm-due').value;
   const bodyText = el('tm-body').value.trim();
+  const effortVal  = el('tm-effort').value.trim();
+  const activeUnit = el('tm-effort-toggle').querySelector('.effort-unit.active');
+  const effortStr  = effortVal && activeUnit ? `${effortVal} ${activeUnit.dataset.unit}` : null;
 
   const labels = [stage];
   if (taskType) labels.push(taskType);
@@ -851,7 +886,7 @@ async function saveTask() {
 
   const payload = {
     title,
-    body:      buildIssueBody(due, localNames, bodyText),
+    body:      buildIssueBody(due, effortStr, localNames, bodyText),
     labels,
     assignees: githubLogins,
   };
@@ -1326,18 +1361,20 @@ function parseDueDate(body) {
 }
 
 function parseBodyParts(body) {
-  if (!body) return { due: null, localAssignees: [], description: '' };
+  if (!body) return { due: null, effort: null, localAssignees: [], description: '' };
   let text = body;
-  let due = null;
+  let due = null; let effort = null;
   const localAssignees = [];
   text = text.replace(/^Due:\s*(\d{4}-\d{2}-\d{2})[ \t]*\r?\n?/m,   (_, d) => { due = d; return ''; });
+  text = text.replace(/^Effort:\s*(.+)[ \t]*\r?\n?/m, (_, e) => { effort = e.trim(); return ''; });
   text = text.replace(/^Local-Assignee:\s*(.+)[ \t]*\r?\n?/mg, (_, n) => { localAssignees.push(n.trim()); return ''; });
-  return { due, localAssignees, description: text.trim() };
+  return { due, effort, localAssignees, description: text.trim() };
 }
 
-function buildIssueBody(due, localAssigneeNames, description) {
+function buildIssueBody(due, effort, localAssigneeNames, description) {
   const metaLines = [];
-  if (due) metaLines.push(`Due: ${due}`);
+  if (due)    metaLines.push(`Due: ${due}`);
+  if (effort) metaLines.push(`Effort: ${effort}`);
   localAssigneeNames.forEach(n => metaLines.push(`Local-Assignee: ${n}`));
   const parts = [];
   if (metaLines.length) parts.push(metaLines.join('\n'));

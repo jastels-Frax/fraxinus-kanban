@@ -320,6 +320,13 @@ a { color: var(--green-dark); }
 .due-date { font-size: 10px; color: var(--gray-500); white-space: nowrap; }
 .due-date.overdue { color: var(--red); font-weight: 700; }
 .due-date.soon    { color: var(--yellow); font-weight: 600; }
+.effort-chip { font-size: 10px; color: var(--gray-500); white-space: nowrap; }
+.effort-input { display: flex; gap: 6px; align-items: center; }
+.effort-input .field-input { flex: 1; min-width: 0; }
+.effort-toggle { display: flex; border: 1px solid var(--gray-300); border-radius: var(--radius); overflow: hidden; flex-shrink: 0; }
+.effort-unit { padding: 6px 12px; font-size: 12px; font-weight: 500; border: none; background: #fff; color: var(--gray-600); cursor: pointer; transition: background 0.12s, color 0.12s; }
+.effort-unit.active { background: var(--green-dark); color: #fff; }
+.effort-unit:not(.active):hover { background: var(--gray-100); }
 
 /* ============================================================
    SKELETON LOADING

@@ -137,6 +137,20 @@
         </div>
       </div>
 
+      <!-- Effort row -->
+      <div class="field-row">
+        <div class="field-group field-grow">
+          <label class="field-label" for="tm-effort">Anticipated Effort</label>
+          <div class="effort-input">
+            <input class="field-input" type="number" id="tm-effort" min="0.5" step="0.5" placeholder="e.g. 3" />
+            <div class="effort-toggle" id="tm-effort-toggle" role="group" aria-label="Unit">
+              <button type="button" class="effort-unit active" data-unit="days">Days</button>
+              <button type="button" class="effort-unit" data-unit="hours">Hours</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Assignees -->
       <div class="field-group">
         <label class="field-label">Assignees</label>
