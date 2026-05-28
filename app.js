@@ -1482,7 +1482,7 @@ async function exportPDF() {
         cellPadding: { top: 2.5, right: 3, bottom: 2.5, left: 3 },
         overflow: 'linebreak',
       },
-      headStyles: { fillColor: [50, 70, 50], textColor: 255, fontStyle: 'bold', fontSize: 7 },
+      headStyles: { fillColor: [50, 70, 50], textColor: 255, fontStyle: 'bold', fontSize: 8.5 },
       alternateRowStyles: { fillColor: [250, 250, 250] },
       columnStyles: {
         0: { cellWidth: 70 },
