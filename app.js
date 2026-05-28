@@ -1355,7 +1355,7 @@ function buildProjectCard(ms, issues) {
 // PDF Export
 // ============================================================
 
-function exportPDF() {
+async function exportPDF() {
   if (!state.issues.length) { toast('No open tasks to export.', 'warning'); return; }
   if (!window.jspdf) { toast('PDF library not loaded — try refreshing the page.', 'warning'); return; }
 
@@ -1370,14 +1370,22 @@ function exportPDF() {
   // ── Header bar ─────────────────────────────────────────────
   doc.setFillColor(29, 58, 29);
   doc.rect(0, 0, PAGE_W, 22, 'F');
+
+  const logo = await loadImageAsDataUrl('FRAXINUS%20LOGO%20Compass%20Color%20with%20White%20Text%20REV01.png');
+  if (logo) {
+    const logoH = 15;
+    const logoW = logoH * (logo.w / logo.h);
+    doc.addImage(logo.dataUrl, 'PNG', MARGIN, (22 - logoH) / 2, logoW, logoH);
+  }
+
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
-  doc.text('FRAXINUS ENVIRONMENTAL & GEOMATICS', MARGIN, 11);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
+  doc.setFontSize(11);
   const dateStr = today.toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' });
-  doc.text(`Current State of Affairs  ·  ${dateStr}`, MARGIN, 18);
+  doc.text('Current State of Affairs', PAGE_W - MARGIN, 10, { align: 'right' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.text(dateStr, PAGE_W - MARGIN, 17, { align: 'right' });
 
   // ── Summary stats ──────────────────────────────────────────
   const overdueCount = state.issues.filter(i => {
@@ -1500,6 +1508,21 @@ function exportPDF() {
   });
 
   doc.save(`fraxinus-status-${today.toISOString().slice(0, 10)}.pdf`);
+}
+
+function loadImageAsDataUrl(src) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+      canvas.getContext('2d').drawImage(img, 0, 0);
+      resolve({ dataUrl: canvas.toDataURL('image/png'), w: img.naturalWidth, h: img.naturalHeight });
+    };
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
 }
 
 // ============================================================
