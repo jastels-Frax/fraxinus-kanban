@@ -1357,42 +1357,70 @@ function buildProjectCard(ms, issues) {
 
 function exportPDF() {
   if (!state.issues.length) { toast('No open tasks to export.', 'warning'); return; }
+  if (!window.jspdf) { toast('PDF library not loaded — try refreshing the page.', 'warning'); return; }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
 
   const today = new Date(); today.setHours(0, 0, 0, 0);
+  const PAGE_W = 297;
+  const MARGIN = 14;
+  const CW = PAGE_W - MARGIN * 2; // 269mm usable width
 
+  // ── Header bar ─────────────────────────────────────────────
+  doc.setFillColor(29, 58, 29);
+  doc.rect(0, 0, PAGE_W, 22, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.text('FRAXINUS ENVIRONMENTAL & GEOMATICS', MARGIN, 11);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  const dateStr = today.toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' });
+  doc.text(`Current State of Affairs  ·  ${dateStr}`, MARGIN, 18);
+
+  // ── Summary stats ──────────────────────────────────────────
   const overdueCount = state.issues.filter(i => {
     const d = parseDueDate(i.body);
     return d && new Date(`${d}T00:00:00`) < today;
   }).length;
-
   const highCount = state.issues.filter(i => i.labels.some(l => l.name === 'Priority: High')).length;
 
+  const STAT_GAP = 3;
+  const STAT_W   = (CW - 3 * STAT_GAP) / 4;
+  const STAT_H   = 14;
+  const STAT_Y   = 26;
+
+  [
+    { num: state.issues.length,    label: 'Open Tasks',       alert: false },
+    { num: highCount,              label: 'High Priority',    alert: highCount > 0 },
+    { num: overdueCount,           label: 'Overdue',          alert: overdueCount > 0 },
+    { num: state.milestones.length, label: 'Active Projects', alert: false },
+  ].forEach((s, i) => {
+    const x = MARGIN + i * (STAT_W + STAT_GAP);
+    doc.setFillColor(245, 245, 245);
+    doc.rect(x, STAT_Y, STAT_W, STAT_H, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(18);
+    doc.setTextColor(...(s.alert ? [215, 58, 74] : [29, 58, 29]));
+    doc.text(String(s.num), x + STAT_W / 2, STAT_Y + 8, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(120, 120, 120);
+    doc.text(s.label.toUpperCase(), x + STAT_W / 2, STAT_Y + 12.5, { align: 'center' });
+  });
+
+  let curY = STAT_Y + STAT_H + 5;
+
+  // ── Priority sections ──────────────────────────────────────
   const priorityGroups = [
-    { label: 'High Priority',   key: 'Priority: High',   color: '#d73a4a' },
-    { label: 'Medium Priority', key: 'Priority: Medium', color: '#b08800' },
-    { label: 'Low Priority',    key: 'Priority: Low',    color: '#888888' },
-    { label: 'No Priority',     key: null,               color: '#cccccc' },
+    { label: 'HIGH PRIORITY',   key: 'Priority: High',   rgb: [215, 58, 74] },
+    { label: 'MEDIUM PRIORITY', key: 'Priority: Medium', rgb: [176, 136, 0] },
+    { label: 'LOW PRIORITY',    key: 'Priority: Low',    rgb: [136, 136, 136] },
+    { label: 'NO PRIORITY',     key: null,               rgb: [180, 180, 180] },
   ];
 
-  const dateStr = today.toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' });
-
-  let html = `
-    <div class="pr-header">
-      <img src="FRAXINUS%20LOGO%20Compass%20Color%20with%20Black%20Text%20REV01.png" class="pr-logo" alt="Fraxinus" />
-      <div class="pr-header-text">
-        <div class="pr-title">Current State of Affairs</div>
-        <div class="pr-date">Generated ${dateStr}</div>
-      </div>
-    </div>
-    <div class="pr-summary">
-      <div class="pr-stat"><span class="pr-stat-num">${state.issues.length}</span><span class="pr-stat-label">Open Tasks</span></div>
-      <div class="pr-stat${highCount ? ' pr-stat-alert' : ''}"><span class="pr-stat-num">${highCount}</span><span class="pr-stat-label">High Priority</span></div>
-      <div class="pr-stat${overdueCount ? ' pr-stat-alert' : ''}"><span class="pr-stat-num">${overdueCount}</span><span class="pr-stat-label">Overdue</span></div>
-      <div class="pr-stat"><span class="pr-stat-num">${state.milestones.length}</span><span class="pr-stat-label">Active Projects</span></div>
-    </div>
-  `;
-
-  priorityGroups.forEach(({ label, key, color }) => {
+  priorityGroups.forEach(({ label, key, rgb }) => {
     const tasks = state.issues
       .filter(i => key
         ? i.labels.some(l => l.name === key)
@@ -1406,55 +1434,72 @@ function exportPDF() {
 
     if (!tasks.length) return;
 
-    html += `
-      <div class="pr-section">
-        <div class="pr-section-hdr" style="border-left-color:${color}">
-          ${esc(label)} <span class="pr-section-count">${tasks.length}</span>
-        </div>
-        <table class="pr-table">
-          <thead><tr>
-            <th>Task</th><th>Stage</th><th>Project</th><th>Assignees</th><th>Type</th><th>Effort</th><th>Due Date</th>
-          </tr></thead>
-          <tbody>
-    `;
+    if (curY > 175) { doc.addPage(); curY = 10; }
 
-    tasks.forEach(issue => {
+    // Section header bar
+    doc.setFillColor(...rgb);
+    doc.rect(MARGIN, curY, CW, 6, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(255, 255, 255);
+    doc.text(`${label}  (${tasks.length})`, MARGIN + 3, curY + 4);
+    curY += 7;
+
+    const rows = tasks.map(issue => {
       const stageLabel = issue.labels.find(l => STAGE_LABELS.includes(l.name));
-      const stage      = stageLabel ? stageLabel.name : '—';
-      const stageColor = STAGE_COLORS[stage] || '#aaa';
       const project    = issue.milestone ? issue.milestone.title : '—';
       const assignees  = allIssueAssignees(issue).map(m => m.name).join(', ') || '—';
       const typeLabel  = issue.labels.find(l => TASK_TYPE_LABELS.includes(l.name));
-      const taskType   = typeLabel ? typeLabel.name : '—';
       const { effort } = parseBodyParts(issue.body);
       const due        = parseDueDate(issue.body);
-      const isOverdue  = due && new Date(`${due}T00:00:00`) < today;
-
-      html += `
-        <tr>
-          <td class="pr-task-title">${esc(issue.title)}</td>
-          <td><span class="pr-dot" style="background:${stageColor}"></span>${esc(stage)}</td>
-          <td>${esc(project)}</td>
-          <td>${esc(assignees)}</td>
-          <td>${esc(taskType)}</td>
-          <td>${effort ? esc(effort) : '—'}</td>
-          <td${isOverdue ? ' class="pr-overdue"' : ''}>${due || '—'}</td>
-        </tr>
-      `;
+      return [
+        issue.title,
+        stageLabel ? stageLabel.name : '—',
+        project,
+        assignees,
+        typeLabel ? typeLabel.name : '—',
+        effort || '—',
+        due || '—',
+      ];
     });
 
-    html += `</tbody></table></div>`;
+    doc.autoTable({
+      startY: curY,
+      head: [['Task', 'Stage', 'Project', 'Assignees', 'Type', 'Effort', 'Due Date']],
+      body: rows,
+      margin: { left: MARGIN, right: MARGIN },
+      tableWidth: CW,
+      styles: {
+        fontSize: 8,
+        cellPadding: { top: 2.5, right: 3, bottom: 2.5, left: 3 },
+        overflow: 'linebreak',
+      },
+      headStyles: { fillColor: [50, 70, 50], textColor: 255, fontStyle: 'bold', fontSize: 7 },
+      alternateRowStyles: { fillColor: [250, 250, 250] },
+      columnStyles: {
+        0: { cellWidth: 70 },
+        1: { cellWidth: 38 },
+        2: { cellWidth: 42 },
+        3: { cellWidth: 40 },
+        4: { cellWidth: 22 },
+        5: { cellWidth: 20 },
+        6: { cellWidth: 37 },
+      },
+      didParseCell: data => {
+        if (data.column.index === 6 && data.section === 'body') {
+          const due = data.cell.raw;
+          if (due && due !== '—' && new Date(`${due}T00:00:00`) < today) {
+            data.cell.styles.textColor = [215, 58, 74];
+            data.cell.styles.fontStyle = 'bold';
+          }
+        }
+      },
+    });
+
+    curY = doc.lastAutoTable.finalY + 4;
   });
 
-  const report = el('print-report');
-  report.innerHTML = html;
-  window.print();
-  window.addEventListener('afterprint', () => { report.innerHTML = ''; }, { once: true });
-}
-
-function esc(str) {
-  return String(str ?? '')
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  doc.save(`fraxinus-status-${today.toISOString().slice(0, 10)}.pdf`);
 }
 
 // ============================================================
