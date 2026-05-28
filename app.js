@@ -8,6 +8,7 @@ const STAGE_LABELS = [
   'Proposal / Scoping',
   'Fieldwork',
   'Reporting / Permitting',
+  'Miscellaneous',
   'Review / QA',
   'Delivered / Closed',
 ];
@@ -16,6 +17,7 @@ const STAGE_COLORS = {
   'Proposal / Scoping':    '#0052cc',
   'Fieldwork':             '#006b75',
   'Reporting / Permitting':'#5319e7',
+  'Miscellaneous':         '#0891b2',
   'Review / QA':           '#d93f0b',
   'Delivered / Closed':    '#666666',
 };
@@ -32,6 +34,7 @@ const REQUIRED_LABELS = [
   { name: 'Proposal / Scoping',    color: '0052cc', description: 'Stage: proposal and scoping' },
   { name: 'Fieldwork',             color: '006b75', description: 'Stage: fieldwork' },
   { name: 'Reporting / Permitting',color: '5319e7', description: 'Stage: reporting and permitting' },
+  { name: 'Miscellaneous',         color: '0891b2', description: 'Stage: miscellaneous tasks' },
   { name: 'Review / QA',           color: 'd93f0b', description: 'Stage: review and QA' },
   { name: 'Delivered / Closed',    color: '666666', description: 'Stage: delivered or closed' },
   { name: 'Fieldwork',               color: '0075ca', description: 'Task type: fieldwork' },
