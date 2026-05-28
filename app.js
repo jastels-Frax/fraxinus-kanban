@@ -924,7 +924,10 @@ async function saveProject() {
       state.token, { method: 'POST', body: JSON.stringify(payload) });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      // 410 Gone = milestones disabled; 404 = wrong scope or private repo
+      // 403 = token lacks milestone write permission; 404/410 = milestones disabled or wrong repo
+      if (res.status === 403) {
+        throw new Error('Permission denied. Your Personal Access Token needs the full "repo" scope to create projects. Go to github.com/settings/tokens, regenerate your token with the "repo" checkbox ticked, then reconnect via Settings.');
+      }
       if (res.status === 404 || res.status === 410) {
         throw new Error('Milestones could not be created. Make sure your PAT has the full "repo" scope (not just "public_repo"), and that Issues are enabled on this repository.');
       }
