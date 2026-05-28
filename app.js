@@ -32,7 +32,6 @@ const PRIORITY_LABELS = [
   'Priority: High', 'Priority: Medium', 'Priority: Low',
 ];
 
-// All labels the board depends on — auto-created on first connect
 const REQUIRED_LABELS = [
   { name: 'Proposal / Scoping',      color: '0052cc', description: 'Stage: proposal and scoping' },
   { name: 'Permitting / Regulatory', color: '5319e7', description: 'Stage: permitting and regulatory' },
@@ -51,6 +50,12 @@ const REQUIRED_LABELS = [
   { name: 'Priority: High',          color: 'd73a4a', description: 'Priority: high' },
   { name: 'Priority: Medium',        color: 'b08800', description: 'Priority: medium' },
   { name: 'Priority: Low',           color: '999999', description: 'Priority: low' },
+];
+
+// Colours cycled through when creating local team members
+const MEMBER_COLORS = [
+  '#2d5a27', '#0052cc', '#5319e7', '#d93f0b', '#b60205',
+  '#006b75', '#1d76db', '#7057ff', '#0075ca', '#008672',
 ];
 
 // ============================================================
@@ -72,7 +77,7 @@ const state = {
 // Task modal working state
 const modal = {
   editingIssue:      null,
-  selectedAssignees: [],
+  selectedAssignees: [], // array of unified member objects
   pickerOpen:        false,
 };
 
@@ -86,9 +91,9 @@ document.addEventListener('DOMContentLoaded', () => {
   state.repo  = localStorage.getItem('gh_repo')  || 'fraxinus-kanban';
 
   if (!state.token) {
-    document.getElementById('setup-modal').classList.remove('hidden');
+    el('setup-modal').classList.remove('hidden');
   } else {
-    document.getElementById('app').classList.remove('hidden');
+    el('app').classList.remove('hidden');
     loadData();
   }
 
@@ -131,10 +136,10 @@ function bindUIEvents() {
 
   // Assignee picker
   el('tm-ap-trigger').addEventListener('click', e => { e.stopPropagation(); toggleAssigneePicker(); });
-  el('tm-ap-trigger').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleAssigneePicker(); } });
+  el('tm-ap-trigger').addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleAssigneePicker(); }
+  });
   el('tm-ap-search').addEventListener('input', e => buildAssigneeList(e.target.value));
-  el('tm-ap-manual-btn').addEventListener('click', addManualAssignee);
-  el('tm-ap-manual').addEventListener('keydown', e => { if (e.key === 'Enter') addManualAssignee(); });
   document.addEventListener('click', e => {
     if (modal.pickerOpen && !el('tm-ap').contains(e.target)) closeAssigneePicker();
   });
@@ -149,8 +154,15 @@ function bindUIEvents() {
   el('team-x').addEventListener('click', closeTeamModal);
   el('team-done').addEventListener('click', closeTeamModal);
   el('team-modal').addEventListener('click', e => { if (e.target === el('team-modal')) closeTeamModal(); });
-  el('team-add-btn').addEventListener('click', () => addTeamMember(el('team-add-input').value.trim()));
-  el('team-add-input').addEventListener('keydown', e => { if (e.key === 'Enter') addTeamMember(el('team-add-input').value.trim()); });
+  el('team-add-btn').addEventListener('click', () =>
+    addTeamMember(el('team-add-name').value, el('team-add-github').value)
+  );
+  el('team-add-name').addEventListener('keydown', e => {
+    if (e.key === 'Enter') el('team-add-github').focus();
+  });
+  el('team-add-github').addEventListener('keydown', e => {
+    if (e.key === 'Enter') addTeamMember(el('team-add-name').value, el('team-add-github').value);
+  });
 
   // Global keyboard shortcuts
   document.addEventListener('keydown', e => {
@@ -194,7 +206,6 @@ async function handleSetupSave() {
     localStorage.setItem('gh_repo',  repo);
     el('setup-modal').classList.add('hidden');
     el('app').classList.remove('hidden');
-    // Ensure all required labels exist before first use
     await ensureLabelsExist();
     loadData();
   } catch (err) {
@@ -266,7 +277,6 @@ async function loadData() {
     populateFilterSelects();
     renderBoard();
     renderPeople();
-    // Silently create any missing labels in the background
     ensureLabelsExist().catch(() => {});
   } catch (err) {
     if (err.message !== 'unauthorized' && err.message !== 'rate-limited') {
@@ -282,7 +292,6 @@ async function ensureLabelsExist() {
   const existingNames = new Set(existing.map(l => l.name));
   const missing = REQUIRED_LABELS.filter(l => !existingNames.has(l.name));
   if (missing.length === 0) return;
-
   await Promise.all(missing.map(l =>
     ghFetch(`repos/${state.owner}/${state.repo}/labels`, state.token, {
       method: 'POST',
@@ -290,6 +299,142 @@ async function ensureLabelsExist() {
     }).catch(() => {})
   ));
   toast(`Set up ${missing.length} label${missing.length !== 1 ? 's' : ''} in your repository`, 'success');
+}
+
+// ============================================================
+// Team Members — Local Storage
+// ============================================================
+// Each local member: { id, name, initials, color, githubLogin }
+// GitHub-only members remain in state.collaborators / gh_team_cache.
+// Both types are surfaced together via getKnownTeamMembers().
+
+function getLocalTeam() {
+  try { return JSON.parse(localStorage.getItem('gh_local_team') || '[]'); } catch (_) { return []; }
+}
+
+function saveLocalTeam(members) {
+  try { localStorage.setItem('gh_local_team', JSON.stringify(members)); } catch (_) {}
+}
+
+function makeLocalMember(name, githubLogin = null) {
+  const existing = getLocalTeam();
+  const color = MEMBER_COLORS[existing.length % MEMBER_COLORS.length];
+  return {
+    id:          `local-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    name:        name.trim(),
+    initials:    makeInitials(name),
+    color,
+    githubLogin: githubLogin ? githubLogin.trim() : null,
+  };
+}
+
+function makeInitials(name) {
+  return (name || '').trim().split(/\s+/).filter(Boolean).slice(0, 2)
+    .map(w => w[0].toUpperCase()).join('') || '?';
+}
+
+// Unique string key for a member object (used for dedup / selection tracking)
+function memberKey(m) {
+  return m.type === 'github' ? `github:${m.login}` : `local:${m.id}`;
+}
+
+// Returns all known team members as unified objects with a `type` field
+function getKnownTeamMembers() {
+  const map = new Map();
+
+  const addGitHub = u => {
+    const key = `github:${u.login}`;
+    if (!map.has(key)) map.set(key, { type: 'github', name: u.login, login: u.login, avatar_url: u.avatar_url });
+  };
+
+  state.collaborators.forEach(addGitHub);
+  state.issues.forEach(i => githubAssigneesOf(i).forEach(addGitHub));
+  try {
+    JSON.parse(localStorage.getItem('gh_team_cache') || '[]').forEach(addGitHub);
+  } catch (_) {}
+
+  getLocalTeam().forEach(m => {
+    const key = `local:${m.id}`;
+    if (!map.has(key)) map.set(key, { type: 'local', ...m });
+  });
+
+  return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function cacheGitHubMember(user) {
+  try {
+    const cached = JSON.parse(localStorage.getItem('gh_team_cache') || '[]');
+    if (!cached.find(m => m.login === user.login)) {
+      cached.push({ login: user.login, avatar_url: user.avatar_url, html_url: user.html_url });
+      localStorage.setItem('gh_team_cache', JSON.stringify(cached));
+    }
+  } catch (_) {}
+}
+
+// ============================================================
+// Issue Assignee Helpers
+// ============================================================
+
+// Raw GitHub assignees from the issue object
+function githubAssigneesOf(issue) {
+  const out = []; const seen = new Set();
+  const add = a => { if (a && !seen.has(a.login)) { seen.add(a.login); out.push(a); } };
+  (issue.assignees || []).forEach(add);
+  add(issue.assignee);
+  return out;
+}
+
+// All assignees (GitHub + local-from-body) as unified member objects
+function allIssueAssignees(issue) {
+  const out = []; const seen = new Set();
+
+  githubAssigneesOf(issue).forEach(a => {
+    const key = `github:${a.login}`;
+    if (!seen.has(key)) { seen.add(key); out.push({ type: 'github', name: a.login, login: a.login, avatar_url: a.avatar_url }); }
+  });
+
+  const localTeam = getLocalTeam();
+  parseLocalAssigneeNames(issue.body).forEach(name => {
+    const key = `local:${name}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      const stored = localTeam.find(m => m.name === name);
+      out.push(stored
+        ? { type: 'local', ...stored }
+        : { type: 'local', id: `orphan-${name}`, name, initials: makeInitials(name), color: '#999999', githubLogin: null }
+      );
+    }
+  });
+
+  return out;
+}
+
+function parseLocalAssigneeNames(body) {
+  if (!body) return [];
+  return [...(body.matchAll(/^Local-Assignee:\s*(.+?)[ \t]*$/mg))].map(m => m[1].trim());
+}
+
+// ============================================================
+// Avatar rendering
+// ============================================================
+
+function makeMemberAvatar(member, sizePx = 18) {
+  if (member.type === 'github') {
+    const img = document.createElement('img');
+    img.className = 'avatar';
+    img.style.cssText = `width:${sizePx}px;height:${sizePx}px;flex-shrink:0`;
+    const base = member.avatar_url || `https://github.com/${member.login}.png`;
+    const sep  = base.includes('?') ? '&' : '?';
+    img.src = `${base}${sep}s=${sizePx * 2}`;
+    img.alt = member.name; img.loading = 'lazy';
+    return img;
+  }
+  const span = document.createElement('span');
+  span.className = 'avatar-initials';
+  span.style.cssText = `width:${sizePx}px;height:${sizePx}px;font-size:${Math.max(7, Math.floor(sizePx * 0.42))}px;background:${member.color};flex-shrink:0`;
+  span.textContent = member.initials || '?';
+  span.title = member.name;
+  return span;
 }
 
 // ============================================================
@@ -306,15 +451,17 @@ function populateFilterSelects() {
   });
   msEl.value = curMs;
 
+  // Assignee filter — prefixed values: "github:login" or "local:Name"
   const aEl = el('assignee-filter'); const curA = aEl.value;
   aEl.innerHTML = '<option value="">All People</option>';
   const seen = new Set();
-  state.issues.forEach(i => {
-    allAssignees(i).forEach(a => {
-      if (!seen.has(a.login)) {
-        seen.add(a.login);
+  state.issues.forEach(issue => {
+    allIssueAssignees(issue).forEach(m => {
+      const key = memberKey(m);
+      if (!seen.has(key)) {
+        seen.add(key);
         const o = document.createElement('option');
-        o.value = o.textContent = a.login;
+        o.value = key; o.textContent = m.name;
         aEl.appendChild(o);
       }
     });
@@ -342,7 +489,15 @@ function applyFilters(issues) {
   const { milestone, assignee, type, priority } = state.filters;
   return issues.filter(issue => {
     if (milestone && (!issue.milestone || issue.milestone.title !== milestone)) return false;
-    if (assignee  && !new Set(allAssignees(issue).map(a => a.login)).has(assignee)) return false;
+    if (assignee) {
+      if (assignee.startsWith('github:')) {
+        const login = assignee.slice(7);
+        if (!new Set(githubAssigneesOf(issue).map(a => a.login)).has(login)) return false;
+      } else if (assignee.startsWith('local:')) {
+        const name = assignee.slice(6);
+        if (!parseLocalAssigneeNames(issue.body).includes(name)) return false;
+      }
+    }
     const lns = issue.labels.map(l => l.name);
     if (type     && !lns.includes(type))     return false;
     if (priority && !lns.includes(priority)) return false;
@@ -365,30 +520,21 @@ function renderBoard() {
 
 function buildColumn(stage, issues) {
   const col = document.createElement('div');
-  col.className = 'column';
-  col.dataset.stage = stage;
+  col.className = 'column'; col.dataset.stage = stage;
 
-  // Header
-  const hdr = document.createElement('div');
-  hdr.className = 'column-header';
-  const wrap = document.createElement('div');
-  wrap.className = 'column-title-wrap';
+  const hdr = document.createElement('div'); hdr.className = 'column-header';
+  const wrap = document.createElement('div'); wrap.className = 'column-title-wrap';
   const dot = document.createElement('span');
-  dot.className = 'column-dot';
-  dot.style.background = STAGE_COLORS[stage];
+  dot.className = 'column-dot'; dot.style.background = STAGE_COLORS[stage];
   const title = document.createElement('span');
-  title.className = 'column-title';
-  title.textContent = stage;
+  title.className = 'column-title'; title.textContent = stage;
   wrap.appendChild(dot); wrap.appendChild(title);
   const count = document.createElement('span');
-  count.className = 'column-count';
-  count.textContent = issues.length;
+  count.className = 'column-count'; count.textContent = issues.length;
   hdr.appendChild(wrap); hdr.appendChild(count);
   col.appendChild(hdr);
 
-  // Body (drop zone)
-  const body = document.createElement('div');
-  body.className = 'column-body';
+  const body = document.createElement('div'); body.className = 'column-body';
   body.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; col.classList.add('drop-active'); });
   body.addEventListener('dragleave', e => { if (!col.contains(e.relatedTarget)) col.classList.remove('drop-active'); });
   body.addEventListener('drop', e => {
@@ -398,103 +544,82 @@ function buildColumn(stage, issues) {
   issues.forEach(issue => body.appendChild(buildCard(issue)));
   col.appendChild(body);
 
-  // Footer
-  const footer = document.createElement('div');
-  footer.className = 'column-footer';
+  const footer = document.createElement('div'); footer.className = 'column-footer';
   const addBtn = document.createElement('button');
-  addBtn.className = 'add-task-btn';
-  addBtn.textContent = '+ Add Task';
+  addBtn.className = 'add-task-btn'; addBtn.textContent = '+ Add Task';
   addBtn.addEventListener('click', () => openTaskModal(null, stage));
   footer.appendChild(addBtn);
   col.appendChild(footer);
-
   return col;
 }
 
 function buildCard(issue) {
   const card = document.createElement('div');
-  card.className = 'card';
-  card.draggable = true;
+  card.className = 'card'; card.draggable = true;
   card.dataset.issueNumber = issue.number;
 
   const priority = PRIORITY_LABELS.find(p => issue.labels.some(l => l.name === p));
   if (priority) card.dataset.priority = priority;
 
-  // Click anywhere on card → edit modal
-  card.addEventListener('click', () => {
-    if (card.classList.contains('dragging')) return;
-    openTaskModal(issue);
-  });
-
-  // Drag
+  card.addEventListener('click', () => { if (!card.classList.contains('dragging')) openTaskModal(issue); });
   card.addEventListener('dragstart', e => {
-    state.draggedIssue = issue;
-    card.classList.add('dragging');
+    state.draggedIssue = issue; card.classList.add('dragging');
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', String(issue.number));
   });
-  card.addEventListener('dragend', () => {
-    state.draggedIssue = null;
-    card.classList.remove('dragging');
-  });
+  card.addEventListener('dragend', () => { state.draggedIssue = null; card.classList.remove('dragging'); });
 
-  // Title (plain text — no link; GitHub link is in the edit modal)
   const titleEl = document.createElement('div');
-  titleEl.className = 'card-title';
-  titleEl.textContent = issue.title;
+  titleEl.className = 'card-title'; titleEl.textContent = issue.title;
   card.appendChild(titleEl);
 
-  // Meta
-  const meta = document.createElement('div');
-  meta.className = 'card-meta';
+  const meta = document.createElement('div'); meta.className = 'card-meta';
+
   if (issue.milestone) {
     const proj = document.createElement('div');
     proj.className = 'card-project';
     proj.textContent = `\u{1F4CB} ${issue.milestone.title}`;
     meta.appendChild(proj);
   }
-  const assignee = allAssignees(issue)[0];
-  if (assignee) {
-    const aRow = document.createElement('div');
-    aRow.className = 'card-assignee';
-    const img = document.createElement('img');
-    img.className = 'avatar';
-    img.src = avatarUrl(assignee, 36); img.alt = assignee.login;
-    img.loading = 'lazy';
-    aRow.appendChild(img);
-    aRow.appendChild(document.createTextNode(assignee.login));
+
+  const assignees = allIssueAssignees(issue);
+  if (assignees.length) {
+    const aRow = document.createElement('div'); aRow.className = 'card-assignee';
+    aRow.appendChild(makeMemberAvatar(assignees[0], 18));
+    aRow.appendChild(document.createTextNode(' ' + assignees[0].name));
+    if (assignees.length > 1) {
+      const more = document.createElement('span');
+      more.style.cssText = 'font-size:10px;color:var(--gray-400);margin-left:2px';
+      more.textContent = `+${assignees.length - 1}`;
+      aRow.appendChild(more);
+    }
     meta.appendChild(aRow);
   }
   if (meta.children.length) card.appendChild(meta);
 
-  // Footer: task type chip + due date
   const taskType = issue.labels.find(l => TASK_TYPE_LABELS.includes(l.name));
   const due = parseDueDate(issue.body);
   if (taskType || due) {
-    const footer = document.createElement('div');
-    footer.className = 'card-footer';
+    const footer = document.createElement('div'); footer.className = 'card-footer';
     if (taskType) {
       const chip = document.createElement('span');
-      chip.className = 'label-chip';
-      chip.textContent = taskType.name;
+      chip.className = 'label-chip'; chip.textContent = taskType.name;
       const hex = taskType.color.replace(/^#/, '');
       chip.style.background = `#${hex}`;
       chip.style.color = isLightHex(hex) ? '#1a1a1a' : '#fff';
       footer.appendChild(chip);
     }
     if (due) {
-      const dueEl = document.createElement('span');
-      dueEl.className = 'due-date';
+      const dueEl = document.createElement('span'); dueEl.className = 'due-date';
       const today = new Date(); today.setHours(0,0,0,0);
       const days  = Math.ceil((new Date(`${due}T00:00:00`) - today) / 86400000);
-      if (days < 0) { dueEl.classList.add('overdue'); dueEl.textContent = `Overdue: ${due}`; }
-      else if (days <= 7) { dueEl.classList.add('soon'); dueEl.textContent = `Due: ${due}`; }
-      else { dueEl.textContent = `Due: ${due}`; }
+      if (days < 0)      { dueEl.classList.add('overdue'); dueEl.textContent = `Overdue: ${due}`; }
+      else if (days <= 7){ dueEl.classList.add('soon');    dueEl.textContent = `Due: ${due}`; }
+      else               {                                 dueEl.textContent = `Due: ${due}`; }
       footer.appendChild(dueEl);
     }
     card.appendChild(footer);
   }
-
   return card;
 }
 
@@ -507,55 +632,48 @@ function renderPeople() {
   grid.innerHTML = '';
   const peopleMap = new Map();
   state.issues.forEach(issue => {
-    const seen = new Set();
-    allAssignees(issue).forEach(a => {
-      if (seen.has(a.login)) return;
-      seen.add(a.login);
-      if (!peopleMap.has(a.login)) peopleMap.set(a.login, { user: a, issues: [] });
-      peopleMap.get(a.login).issues.push(issue);
+    const seenInIssue = new Set();
+    allIssueAssignees(issue).forEach(member => {
+      const key = memberKey(member);
+      if (seenInIssue.has(key)) return;
+      seenInIssue.add(key);
+      if (!peopleMap.has(key)) peopleMap.set(key, { member, issues: [] });
+      peopleMap.get(key).issues.push(issue);
     });
   });
   if (peopleMap.size === 0) {
     const p = document.createElement('p');
-    p.className = 'people-empty';
-    p.textContent = 'No assignees on open issues.';
+    p.className = 'people-empty'; p.textContent = 'No assignees on open issues.';
     grid.appendChild(p); return;
   }
-  Array.from(peopleMap.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .forEach(([, { user, issues }]) => grid.appendChild(buildPersonCard(user, issues)));
+  Array.from(peopleMap.values())
+    .sort((a, b) => a.member.name.localeCompare(b.member.name))
+    .forEach(({ member, issues }) => grid.appendChild(buildPersonCard(member, issues)));
 }
 
-function buildPersonCard(user, issues) {
+function buildPersonCard(member, issues) {
   const card = document.createElement('div');
-  card.className = 'person-card';
-  card.setAttribute('tabindex', '0');
-  card.title = `Filter board to ${user.login}`;
+  card.className = 'person-card'; card.setAttribute('tabindex', '0');
+  card.title = `Filter board to ${member.name}`;
 
-  const hdr = document.createElement('div');
-  hdr.className = 'person-header';
-  const img = document.createElement('img');
-  img.className = 'person-avatar';
-  img.src = avatarUrl(user, 80); img.alt = user.login; img.loading = 'lazy';
+  const hdr = document.createElement('div'); hdr.className = 'person-header';
+  hdr.appendChild(makeMemberAvatar(member, 40));
+
   const info = document.createElement('div');
   const nameEl = document.createElement('div');
-  nameEl.className = 'person-name'; nameEl.textContent = user.login;
+  nameEl.className = 'person-name'; nameEl.textContent = member.name;
   const cntEl = document.createElement('div');
   cntEl.className = 'person-count';
   cntEl.textContent = `${issues.length} open task${issues.length !== 1 ? 's' : ''}`;
   info.appendChild(nameEl); info.appendChild(cntEl);
-  hdr.appendChild(img); hdr.appendChild(info);
-  card.appendChild(hdr);
+  hdr.appendChild(info); card.appendChild(hdr);
 
-  const stages = document.createElement('div');
-  stages.className = 'person-stages';
+  const stages = document.createElement('div'); stages.className = 'person-stages';
   STAGE_LABELS.forEach(stage => {
     const n = issues.filter(i => i.labels.some(l => l.name === stage)).length;
     if (!n) return;
-    const row = document.createElement('div');
-    row.className = 'person-stage-row';
-    const dot = document.createElement('span');
-    dot.className = 'stage-dot'; dot.style.background = STAGE_COLORS[stage];
+    const row = document.createElement('div'); row.className = 'person-stage-row';
+    const dot = document.createElement('span'); dot.className = 'stage-dot'; dot.style.background = STAGE_COLORS[stage];
     const nm  = document.createElement('span'); nm.className  = 'stage-name'; nm.textContent  = stage;
     const cnt = document.createElement('span'); cnt.className = 'stage-count'; cnt.textContent = n;
     row.appendChild(dot); row.appendChild(nm); row.appendChild(cnt);
@@ -564,8 +682,9 @@ function buildPersonCard(user, issues) {
   card.appendChild(stages);
 
   const filterTo = () => {
-    el('assignee-filter').value = user.login;
-    state.filters.assignee = user.login;
+    const key = memberKey(member);
+    el('assignee-filter').value = key;
+    state.filters.assignee = key;
     el('filter-badge').classList.remove('hidden');
     switchView('board'); renderBoard();
   };
@@ -593,7 +712,7 @@ async function moveIssueToStage(issue, newStage) {
     const idx = state.issues.findIndex(i => i.number === issue.number);
     if (idx >= 0) state.issues[idx] = updated;
     renderBoard(); renderPeople();
-    toast(`Moved to “${newStage}”`, 'success');
+    toast(`Moved to "${newStage}"`, 'success');
   } catch (err) {
     issue.labels = orig; renderBoard();
     toast(`Could not move task: ${err.message}`, 'error');
@@ -608,16 +727,13 @@ function openTaskModal(issue = null, defaultStage = null) {
   modal.editingIssue      = issue;
   modal.selectedAssignees = [];
 
-  // Populate stage select
   const stageEl = el('tm-stage');
   stageEl.innerHTML = STAGE_LABELS.map(s => `<option value="${s}">${s}</option>`).join('');
 
-  // Populate task type select
   const typeEl = el('tm-type');
   typeEl.innerHTML = '<option value="">None</option>' +
     TASK_TYPE_LABELS.map(t => `<option value="${t}">${t}</option>`).join('');
 
-  // Populate milestone select
   refreshProjectOptions();
 
   const saveBtn  = el('tm-save');
@@ -631,8 +747,7 @@ function openTaskModal(issue = null, defaultStage = null) {
     el('tm-number').classList.remove('hidden');
     saveBtn.textContent = 'Save Changes';
     closeBtn.classList.remove('hidden');
-    ghLink.href = issue.html_url;
-    ghLink.classList.remove('hidden');
+    ghLink.href = issue.html_url; ghLink.classList.remove('hidden');
 
     el('tm-title').value = issue.title;
     const stg = issue.labels.find(l => STAGE_LABELS.includes(l.name));
@@ -642,7 +757,7 @@ function openTaskModal(issue = null, defaultStage = null) {
     typeEl.value = typ ? typ.name : '';
     const pri = issue.labels.find(l => PRIORITY_LABELS.includes(l.name));
     el('tm-priority').value = pri ? pri.name : '';
-    modal.selectedAssignees = [...allAssignees(issue)];
+    modal.selectedAssignees = [...allIssueAssignees(issue)];
     const { due, description } = parseBodyParts(issue.body);
     el('tm-due').value  = due || '';
     el('tm-body').value = description;
@@ -652,13 +767,13 @@ function openTaskModal(issue = null, defaultStage = null) {
     saveBtn.textContent = 'Create Task';
     closeBtn.classList.add('hidden');
     ghLink.classList.add('hidden');
-    el('tm-title').value    = '';
-    stageEl.value           = defaultStage || STAGE_LABELS[0];
+    el('tm-title').value     = '';
+    stageEl.value            = defaultStage || STAGE_LABELS[0];
     el('tm-milestone').value = '';
-    typeEl.value            = '';
-    el('tm-priority').value = '';
-    el('tm-due').value      = '';
-    el('tm-body').value     = '';
+    typeEl.value             = '';
+    el('tm-priority').value  = '';
+    el('tm-due').value       = '';
+    el('tm-body').value      = '';
   }
 
   updateAssigneeDisplay();
@@ -701,28 +816,31 @@ async function saveTask() {
   if (taskType) labels.push(taskType);
   if (priority) labels.push(priority);
 
-  // Build payload — omit milestone entirely when not set (GitHub POST doesn't accept null)
+  // Split assignees: GitHub users → `assignees` field; local-only → issue body
+  const githubLogins   = modal.selectedAssignees.filter(m => m.type === 'github').map(m => m.login);
+  const localNames     = modal.selectedAssignees.filter(m => m.type === 'local').map(m => m.name);
+
   const payload = {
     title,
-    body:      buildIssueBody(due, bodyText),
+    body:      buildIssueBody(due, localNames, bodyText),
     labels,
-    assignees: modal.selectedAssignees.map(a => a.login),
+    assignees: githubLogins,
   };
-  if (msNum) payload.milestone = Number(msNum);
+  if (msNum) payload.milestone = Number(msNum); // omit when empty (POST doesn't accept null)
 
-  const isEditing = !!modal.editingIssue;
-  const issueNumber = modal.editingIssue ? modal.editingIssue.number : null;
+  const isEditing    = !!modal.editingIssue;
+  const issueNumber  = modal.editingIssue ? modal.editingIssue.number : null;
+
+  // For PATCH, explicitly clear milestone if deselected
+  if (isEditing && !msNum) payload.milestone = null;
 
   const btn = el('tm-save');
-  btn.disabled = true;
-  btn.textContent = 'Saving…';
+  btn.disabled = true; btn.textContent = 'Saving…';
   el('tm-error').classList.add('hidden');
 
   try {
     let res;
     if (isEditing) {
-      // PATCH accepts milestone: null to clear it
-      if (!msNum) payload.milestone = null;
       res = await ghFetch(`repos/${state.owner}/${state.repo}/issues/${issueNumber}`,
         state.token, { method: 'PATCH', body: JSON.stringify(payload) });
     } else {
@@ -731,7 +849,6 @@ async function saveTask() {
     }
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      // Surface a clear message for the most common failure case
       const hint = (data.errors || []).map(e => e.value ? `"${e.value}" not found` : e.code).join(', ');
       throw new Error((data.message || `HTTP ${res.status}`) + (hint ? ` — ${hint}` : ''));
     }
@@ -753,24 +870,21 @@ async function saveTask() {
     btn.disabled = false;
     btn.textContent = isEditing ? 'Save Changes' : 'Create Task';
   }
-  // Note: no finally — success path calls closeTaskModal() which hides the button
 }
 
 async function handleCloseIssue() {
   if (!modal.editingIssue) return;
   const issue = modal.editingIssue;
-  if (!confirm(`Close issue #${issue.number}: “${issue.title}”?\n\nThis will close it in GitHub.`)) return;
+  if (!confirm(`Close issue #${issue.number}: "${issue.title}"?\n\nThis will close it in GitHub.`)) return;
 
   const btn = el('tm-close-issue');
   btn.disabled = true; btn.textContent = 'Closing…';
-
   try {
     const res = await ghFetch(`repos/${state.owner}/${state.repo}/issues/${issue.number}`,
       state.token, { method: 'PATCH', body: JSON.stringify({ state: 'closed' }) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     state.issues = state.issues.filter(i => i.number !== issue.number);
-    closeTaskModal();
-    renderBoard(); renderPeople(); populateFilterSelects();
+    closeTaskModal(); renderBoard(); renderPeople(); populateFilterSelects();
     toast('Issue closed', 'success');
   } catch (err) {
     showError('tm-error', `Could not close issue: ${err.message}`);
@@ -783,17 +897,13 @@ async function handleCloseIssue() {
 // ============================================================
 
 function openProjectModal() {
-  el('pm-name').value = '';
-  el('pm-desc').value = '';
-  el('pm-due').value  = '';
+  el('pm-name').value = ''; el('pm-desc').value = ''; el('pm-due').value = '';
   el('pm-error').classList.add('hidden');
   el('project-modal').classList.remove('hidden');
   setTimeout(() => el('pm-name').focus(), 50);
 }
 
-function closeProjectModal() {
-  el('project-modal').classList.add('hidden');
-}
+function closeProjectModal() { el('project-modal').classList.add('hidden'); }
 
 async function saveProject() {
   const name = el('pm-name').value.trim();
@@ -814,6 +924,10 @@ async function saveProject() {
       state.token, { method: 'POST', body: JSON.stringify(payload) });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
+      // 410 Gone = milestones disabled; 404 = wrong scope or private repo
+      if (res.status === 404 || res.status === 410) {
+        throw new Error('Milestones could not be created. Make sure your PAT has the full "repo" scope (not just "public_repo"), and that Issues are enabled on this repository.');
+      }
       throw new Error(data.message || `HTTP ${res.status}`);
     }
     const ms = await res.json();
@@ -821,9 +935,9 @@ async function saveProject() {
     refreshProjectOptions(String(ms.number));
     populateFilterSelects();
     closeProjectModal();
-    toast(`Project “${ms.title}” created`, 'success');
+    toast(`Project "${ms.title}" created`, 'success');
   } catch (err) {
-    showError('pm-error', `Failed: ${err.message}`);
+    showError('pm-error', err.message);
   } finally {
     btn.disabled = false; btn.textContent = 'Create Project';
   }
@@ -834,37 +948,13 @@ async function saveProject() {
 // ============================================================
 
 function openTeamModal() {
-  el('team-add-input').value = '';
+  el('team-add-name').value = ''; el('team-add-github').value = '';
   el('team-error').classList.add('hidden');
   renderTeamList();
   el('team-modal').classList.remove('hidden');
 }
 
-function closeTeamModal() {
-  el('team-modal').classList.add('hidden');
-}
-
-function getKnownTeamMembers() {
-  const map = new Map();
-  state.collaborators.forEach(c => map.set(c.login, c));
-  state.issues.forEach(i => allAssignees(i).forEach(a => { if (!map.has(a.login)) map.set(a.login, a); }));
-  try {
-    JSON.parse(localStorage.getItem('gh_team_cache') || '[]').forEach(u => {
-      if (!map.has(u.login)) map.set(u.login, u);
-    });
-  } catch (_) {}
-  return Array.from(map.values()).sort((a, b) => a.login.localeCompare(b.login));
-}
-
-function cacheTeamMember(user) {
-  try {
-    const cached = JSON.parse(localStorage.getItem('gh_team_cache') || '[]');
-    if (!cached.find(m => m.login === user.login)) {
-      cached.push({ login: user.login, avatar_url: user.avatar_url, html_url: user.html_url });
-      localStorage.setItem('gh_team_cache', JSON.stringify(cached));
-    }
-  } catch (_) {}
-}
+function closeTeamModal() { el('team-modal').classList.add('hidden'); }
 
 function renderTeamList() {
   const list = el('team-list');
@@ -875,53 +965,83 @@ function renderTeamList() {
   }
   list.innerHTML = '';
   members.forEach(m => {
-    const row = document.createElement('div');
-    row.className = 'team-member';
-    const img = document.createElement('img');
-    img.className = 'avatar avatar-md'; img.src = avatarUrl(m, 64); img.alt = m.login; img.loading = 'lazy';
+    const row = document.createElement('div'); row.className = 'team-member';
+    row.appendChild(makeMemberAvatar(m, 32));
+
     const name = document.createElement('span');
-    name.className = 'team-member-name'; name.textContent = m.login;
-    const link = document.createElement('a');
-    link.href = `https://github.com/${m.login}`; link.target = '_blank'; link.rel = 'noopener';
-    link.className = 'team-gh-link'; link.textContent = 'GitHub ↗';
-    row.appendChild(img); row.appendChild(name); row.appendChild(link);
+    name.className = 'team-member-name'; name.textContent = m.name;
+    row.appendChild(name);
+
+    if (m.type === 'github') {
+      const tag = document.createElement('span'); tag.className = 'team-github-tag'; tag.textContent = 'GitHub';
+      row.appendChild(tag);
+      const link = document.createElement('a');
+      link.href = `https://github.com/${m.login}`; link.target = '_blank'; link.rel = 'noopener';
+      link.className = 'team-gh-link'; link.textContent = '↗';
+      row.appendChild(link);
+    } else {
+      const tag = document.createElement('span'); tag.className = 'team-local-tag'; tag.textContent = 'Local';
+      row.appendChild(tag);
+
+      // Allow removing local members
+      const rmBtn = document.createElement('button');
+      rmBtn.type = 'button'; rmBtn.className = 'btn btn-ghost team-remove-btn';
+      rmBtn.textContent = '×'; rmBtn.title = 'Remove from team';
+      rmBtn.addEventListener('click', () => {
+        saveLocalTeam(getLocalTeam().filter(t => t.id !== m.id));
+        renderTeamList();
+      });
+      row.appendChild(rmBtn);
+    }
     list.appendChild(row);
   });
 }
 
-async function addTeamMember(username) {
-  if (!username) return;
+async function addTeamMember(name, githubLogin) {
+  name        = (name || '').trim();
+  githubLogin = (githubLogin || '').trim();
+
+  if (!name) { showError('team-error', 'Full name is required.'); el('team-add-name').focus(); return; }
+
   el('team-error').classList.add('hidden');
   const btn = el('team-add-btn');
   btn.disabled = true; btn.textContent = 'Adding…';
 
   try {
-    // Verify the user exists
-    const userRes = await ghFetch(`users/${username}`);
-    if (!userRes.ok) throw new Error(`GitHub user “${username}” not found.`);
-    const user = await userRes.json();
+    if (githubLogin) {
+      // Verify the GitHub user exists
+      const res = await ghFetch(`users/${githubLogin}`);
+      if (!res.ok) throw new Error(`GitHub user "${githubLogin}" not found — check the username or leave that field blank.`);
+      const ghUser = await res.json();
 
-    // Try to add as collaborator (may need admin rights)
-    const invRes = await ghFetch(`repos/${state.owner}/${state.repo}/collaborators/${username}`,
-      state.token, { method: 'PUT', body: JSON.stringify({ permission: 'push' }) });
+      // Attempt collaborator invite (needs admin; fails gracefully)
+      const invRes = await ghFetch(
+        `repos/${state.owner}/${state.repo}/collaborators/${githubLogin}`,
+        state.token, { method: 'PUT', body: JSON.stringify({ permission: 'push' }) }
+      );
+      if (invRes.status === 201)      toast(`${githubLogin} invited as a repo collaborator`, 'success');
+      else if (invRes.status === 204) toast(`${githubLogin} is already a collaborator`, 'success');
 
-    if (invRes.status === 201) {
-      toast(`${username} invited as collaborator`, 'success');
-    } else if (invRes.status === 204) {
-      toast(`${username} is already a collaborator`, 'success');
-    } else {
-      toast(`${username} added to team list (collaborator invite requires admin access)`, 'info');
+      cacheGitHubMember(ghUser);
+      if (!state.collaborators.find(c => c.login === ghUser.login)) state.collaborators.push(ghUser);
     }
 
-    cacheTeamMember(user);
-    if (!state.collaborators.find(c => c.login === user.login)) state.collaborators.push(user);
+    // Always store a local entry (name + optional github link)
+    const existing = getLocalTeam();
+    if (existing.find(m => m.name.toLowerCase() === name.toLowerCase())) {
+      throw new Error(`"${name}" is already in the team list.`);
+    }
+    const member = makeLocalMember(name, githubLogin || null);
+    existing.push(member);
+    saveLocalTeam(existing);
 
-    el('team-add-input').value = '';
+    el('team-add-name').value = ''; el('team-add-github').value = '';
     renderTeamList();
+    toast(`${name} added to team`, 'success');
   } catch (err) {
     showError('team-error', err.message);
   } finally {
-    btn.disabled = false; btn.textContent = 'Add';
+    btn.disabled = false; btn.textContent = 'Add Member';
   }
 }
 
@@ -929,17 +1049,13 @@ async function addTeamMember(username) {
 // Assignee Picker
 // ============================================================
 
-function toggleAssigneePicker() {
-  modal.pickerOpen ? closeAssigneePicker() : openAssigneePicker();
-}
+function toggleAssigneePicker() { modal.pickerOpen ? closeAssigneePicker() : openAssigneePicker(); }
 
 function openAssigneePicker() {
   modal.pickerOpen = true;
   const trigger = el('tm-ap-trigger');
-  const dropdown = el('tm-ap-dropdown');
-  trigger.classList.add('open');
-  trigger.setAttribute('aria-expanded', 'true');
-  dropdown.classList.remove('hidden');
+  trigger.classList.add('open'); trigger.setAttribute('aria-expanded', 'true');
+  el('tm-ap-dropdown').classList.remove('hidden');
   el('tm-ap-search').value = '';
   buildAssigneeList('');
   setTimeout(() => el('tm-ap-search').focus(), 30);
@@ -947,8 +1063,7 @@ function openAssigneePicker() {
 
 function closeAssigneePicker() {
   modal.pickerOpen = false;
-  el('tm-ap-trigger').classList.remove('open');
-  el('tm-ap-trigger').setAttribute('aria-expanded', 'false');
+  el('tm-ap-trigger').classList.remove('open'); el('tm-ap-trigger').setAttribute('aria-expanded', 'false');
   el('tm-ap-dropdown').classList.add('hidden');
 }
 
@@ -956,39 +1071,36 @@ function buildAssigneeList(filter) {
   const list = el('tm-ap-list');
   const members = getKnownTeamMembers();
   const filtered = filter
-    ? members.filter(m => m.login.toLowerCase().includes(filter.toLowerCase()))
+    ? members.filter(m => m.name.toLowerCase().includes(filter.toLowerCase()))
     : members;
 
   list.innerHTML = '';
   if (filtered.length === 0) {
-    const li = document.createElement('li');
-    li.className = 'ap-empty';
+    const li = document.createElement('li'); li.className = 'ap-empty';
     li.textContent = members.length === 0
-      ? 'No team members yet — add some via the Team button.'
+      ? 'No team members yet — add some via the Team button in the header.'
       : 'No match found.';
     list.appendChild(li); return;
   }
+
   filtered.forEach(member => {
     const li = document.createElement('li');
-    const isSelected = modal.selectedAssignees.some(a => a.login === member.login);
+    const isSelected = modal.selectedAssignees.some(a => memberKey(a) === memberKey(member));
     if (isSelected) li.classList.add('selected');
 
     const chk = document.createElement('span'); chk.className = 'ap-check'; chk.textContent = '✓';
-    const img = document.createElement('img');
-    img.className = 'avatar'; img.src = avatarUrl(member, 36); img.alt = member.login; img.loading = 'lazy';
-    const nm = document.createElement('span'); nm.textContent = member.login;
-
-    li.appendChild(chk); li.appendChild(img); li.appendChild(nm);
-    li.addEventListener('click', () => {
-      toggleAssignee(member);
-      buildAssigneeList(el('tm-ap-search').value);
-    });
+    const nm  = document.createElement('span'); nm.textContent = member.name;
+    li.appendChild(chk);
+    li.appendChild(makeMemberAvatar(member, 20));
+    li.appendChild(nm);
+    li.addEventListener('click', () => { toggleAssignee(member); buildAssigneeList(el('tm-ap-search').value); });
     list.appendChild(li);
   });
 }
 
 function toggleAssignee(member) {
-  const idx = modal.selectedAssignees.findIndex(a => a.login === member.login);
+  const key = memberKey(member);
+  const idx = modal.selectedAssignees.findIndex(a => memberKey(a) === key);
   if (idx >= 0) modal.selectedAssignees.splice(idx, 1);
   else modal.selectedAssignees.push(member);
   updateAssigneeDisplay();
@@ -1002,42 +1114,15 @@ function updateAssigneeDisplay() {
     return;
   }
   modal.selectedAssignees.forEach(a => {
-    const chip = document.createElement('span');
-    chip.className = 'ap-chip';
-    const img = document.createElement('img');
-    img.className = 'avatar'; img.src = avatarUrl(a, 36); img.alt = a.login;
-    const nm = document.createElement('span'); nm.textContent = a.login;
+    const chip = document.createElement('span'); chip.className = 'ap-chip';
+    chip.appendChild(makeMemberAvatar(a, 16));
+    const nm = document.createElement('span'); nm.textContent = a.name;
     const x  = document.createElement('button');
     x.type = 'button'; x.className = 'ap-chip-x'; x.textContent = '×';
     x.addEventListener('click', e => { e.stopPropagation(); toggleAssignee(a); });
-    chip.appendChild(img); chip.appendChild(nm); chip.appendChild(x);
+    chip.appendChild(nm); chip.appendChild(x);
     chips.appendChild(chip);
   });
-}
-
-async function addManualAssignee() {
-  const input = el('tm-ap-manual');
-  const username = input.value.trim();
-  if (!username) return;
-  const btn = el('tm-ap-manual-btn');
-  btn.disabled = true;
-  try {
-    const res = await ghFetch(`users/${username}`);
-    if (!res.ok) throw new Error(`User “${username}” not found on GitHub.`);
-    const user = await res.json();
-    cacheTeamMember(user);
-    if (!state.collaborators.find(c => c.login === user.login)) state.collaborators.push(user);
-    if (!modal.selectedAssignees.find(a => a.login === user.login)) {
-      modal.selectedAssignees.push(user);
-      updateAssigneeDisplay();
-    }
-    input.value = '';
-    buildAssigneeList(el('tm-ap-search').value);
-  } catch (err) {
-    toast(err.message, 'error');
-  } finally {
-    btn.disabled = false;
-  }
 }
 
 // ============================================================
@@ -1052,25 +1137,8 @@ function switchView(view) {
 }
 
 // ============================================================
-// Utilities / Helpers
+// Body Parsing & Building
 // ============================================================
-
-function el(id) { return document.getElementById(id); }
-
-function allAssignees(issue) {
-  const out = [];
-  const seen = new Set();
-  const add = a => { if (a && !seen.has(a.login)) { seen.add(a.login); out.push(a); } };
-  (issue.assignees || []).forEach(add);
-  add(issue.assignee);
-  return out;
-}
-
-function avatarUrl(user, size = 40) {
-  const base = user.avatar_url || `https://github.com/${user.login}.png`;
-  const sep  = base.includes('?') ? '&' : '?';
-  return `${base}${sep}s=${size}`;
-}
 
 function parseDueDate(body) {
   if (!body) return null;
@@ -1079,18 +1147,35 @@ function parseDueDate(body) {
 }
 
 function parseBodyParts(body) {
-  if (!body) return { due: null, description: '' };
-  const m = body.match(/(?:^|\n)Due:\s*(\d{4}-\d{2}-\d{2})[ \t]*(?:\r?\n|$)/);
-  const due = m ? m[1] : null;
-  const description = body.replace(/(?:^|\n)Due:\s*\d{4}-\d{2}-\d{2}[ \t]*(?:\r?\n|$)/g, '\n').trim();
-  return { due, description };
+  if (!body) return { due: null, localAssignees: [], description: '' };
+  let text = body;
+  let due = null;
+  const localAssignees = [];
+  text = text.replace(/^Due:\s*(\d{4}-\d{2}-\d{2})[ \t]*\r?\n?/m,   (_, d) => { due = d; return ''; });
+  text = text.replace(/^Local-Assignee:\s*(.+?)[ \t]*\r?\n?/mg, (_, n) => { localAssignees.push(n.trim()); return ''; });
+  return { due, localAssignees, description: text.trim() };
 }
 
-function buildIssueBody(due, description) {
+function buildIssueBody(due, localAssigneeNames, description) {
+  const metaLines = [];
+  if (due) metaLines.push(`Due: ${due}`);
+  localAssigneeNames.forEach(n => metaLines.push(`Local-Assignee: ${n}`));
   const parts = [];
-  if (due)         parts.push(`Due: ${due}`);
-  if (description) parts.push(description);
+  if (metaLines.length) parts.push(metaLines.join('\n'));
+  if (description)      parts.push(description);
   return parts.join('\n\n');
+}
+
+// ============================================================
+// Utilities
+// ============================================================
+
+function el(id) { return document.getElementById(id); }
+
+function avatarUrl(user, size = 40) {
+  const base = user.avatar_url || `https://github.com/${user.login}.png`;
+  const sep  = base.includes('?') ? '&' : '?';
+  return `${base}${sep}s=${size}`;
 }
 
 function isLightHex(hex) {
@@ -1103,16 +1188,12 @@ function isLightHex(hex) {
 function showLoading(on) { el('loading-overlay').classList.toggle('hidden', !on); }
 
 function showError(id, msg) {
-  const e = el(id);
-  e.textContent = msg;
-  e.classList.remove('hidden');
+  const e = el(id); e.textContent = msg; e.classList.remove('hidden');
 }
 
 function toast(msg, type = 'info') {
-  const wrap = el('toast-container');
   const t = document.createElement('div');
-  t.className = `toast${type !== 'info' ? ` ${type}` : ''}`;
-  t.textContent = msg;
-  wrap.appendChild(t);
-  setTimeout(() => t.remove(), 4000);
+  t.className = `toast${type !== 'info' ? ` ${type}` : ''}`; t.textContent = msg;
+  el('toast-container').appendChild(t);
+  setTimeout(() => t.remove(), 4500);
 }

@@ -149,10 +149,7 @@
               <input type="text" class="ap-search" id="tm-ap-search" placeholder="&#128269; Search team members&hellip;" autocomplete="off" />
             </div>
             <ul class="ap-list" id="tm-ap-list"></ul>
-            <div class="ap-add-row">
-              <input type="text" class="ap-add-input" id="tm-ap-manual" placeholder="Add by GitHub username&hellip;" autocomplete="off" />
-              <button type="button" class="btn btn-sm btn-secondary-sm" id="tm-ap-manual-btn">Add</button>
-            </div>
+            <div class="ap-add-hint">Team members not listed? Add them via the <strong>Team</strong> button in the header.</div>
           </div>
         </div>
       </div>
@@ -219,13 +216,17 @@
       <p class="help-text">Team members listed here appear in the assignee picker when creating or editing tasks.</p>
       <div id="team-list" class="team-list"></div>
 
-      <div class="field-group" style="margin-top:18px">
+      <div style="margin-top:18px">
         <label class="field-label">Add Team Member</label>
-        <div class="input-btn-row">
-          <input class="field-input" type="text" id="team-add-input" placeholder="GitHub username (e.g. jsmith)" autocomplete="off" />
-          <button type="button" class="btn btn-primary" id="team-add-btn">Add</button>
+        <div class="field-group" style="margin-bottom:8px">
+          <label class="field-label" for="team-add-name">Full Name <span class="req">*</span></label>
+          <input class="field-input" type="text" id="team-add-name" placeholder="e.g. Jane Smith" autocomplete="off" />
         </div>
-        <p class="help-subtext">Enter their GitHub username. They will also be invited as a repository collaborator if you have admin access.</p>
+        <div class="field-group" style="margin-bottom:10px">
+          <label class="field-label" for="team-add-github">GitHub Username <span class="optional">(optional)</span></label>
+          <input class="field-input" type="text" id="team-add-github" placeholder="e.g. jsmith — leave blank if not on GitHub" autocomplete="off" />
+        </div>
+        <button type="button" class="btn btn-primary" id="team-add-btn">Add Member</button>
       </div>
       <div id="team-error" class="error-msg hidden"></div>
     </div>

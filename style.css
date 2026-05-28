@@ -848,6 +848,72 @@ a { color: var(--green-dark); }
 .team-list::-webkit-scrollbar-thumb { background: var(--gray-300); border-radius: 3px; }
 
 /* ============================================================
+   INITIALS AVATAR (non-GitHub team members)
+   ============================================================ */
+.avatar-initials {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+/* ---- optional label annotation ---- */
+.optional {
+  font-size: 10px;
+  color: var(--gray-400);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* ---- team member type tag ---- */
+.team-local-tag {
+  font-size: 10px;
+  background: var(--gray-100);
+  color: var(--gray-500);
+  border: 1px solid var(--gray-200);
+  padding: 1px 7px;
+  border-radius: 8px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.team-github-tag {
+  font-size: 10px;
+  background: var(--green-bg);
+  color: var(--green-dark);
+  border: 1px solid var(--green-light);
+  padding: 1px 7px;
+  border-radius: 8px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* ---- team remove button ---- */
+.team-remove-btn {
+  margin-left: auto;
+  color: var(--gray-300) !important;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 3px !important;
+}
+.team-remove-btn:hover { color: var(--red) !important; background: #fff5f5 !important; }
+
+/* ---- assignee picker hint ---- */
+.ap-add-hint {
+  padding: 8px 10px;
+  font-size: 11px;
+  color: var(--gray-400);
+  border-top: 1px solid var(--gray-100);
+  line-height: 1.4;
+}
+.ap-add-hint strong { color: var(--gray-600); }
+
+/* ============================================================
    RESPONSIVE
    ============================================================ */
 @media (max-width: 700px) {
