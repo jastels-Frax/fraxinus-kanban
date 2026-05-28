@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fraxinus Kanban</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ===================== SETUP MODAL ===================== -->
+<div id="setup-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-logo">&#127807;</div>
+      <h2>Fraxinus Kanban</h2>
+      <p>Environmental &amp; Geomatics Task Board</p>
+    </div>
+    <div class="modal-body">
+      <div class="setup-steps">
+        <h3>First-time Setup</h3>
+        <ol>
+          <li>Create a GitHub Personal Access Token (PAT) with <code>repo</code> scope at
+            <a href="https://github.com/settings/tokens" target="_blank" rel="noopener">github.com/settings/tokens</a></li>
+          <li>Paste the token below, then confirm the repository owner and name</li>
+          <li>Create the required labels in your repo (see the list below)</li>
+        </ol>
+      </div>
+
+      <div class="form-group">
+        <label for="pat-input">GitHub Personal Access Token</label>
+        <input type="password" id="pat-input" placeholder="ghp_xxxxxxxxxxxx" autocomplete="off" />
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="owner-input">Repository Owner</label>
+          <input type="text" id="owner-input" value="jastels-frax" />
+        </div>
+        <div class="form-group">
+          <label for="repo-input">Repository Name</label>
+          <input type="text" id="repo-input" value="fraxinus-kanban" />
+        </div>
+      </div>
+
+      <div id="setup-error" class="error-msg hidden"></div>
+      <button id="save-setup-btn" class="btn btn-primary btn-full">Connect to GitHub</button>
+
+      <details class="label-setup">
+        <summary>Required GitHub Labels — copy these into your repo</summary>
+        <div class="label-list">
+          <h4>Stage Labels (Kanban Columns)</h4>
+          <table>
+            <tr><td><span class="label-chip" style="background:#0052cc">Proposal / Scoping</span></td><td><code>#0052cc</code></td></tr>
+            <tr><td><span class="label-chip" style="background:#5319e7">Permitting / Regulatory</span></td><td><code>#5319e7</code></td></tr>
+            <tr><td><span class="label-chip" style="background:#006b75">Field Scheduled</span></td><td><code>#006b75</code></td></tr>
+            <tr><td><span class="label-chip" style="background:#2d5a27">Field Active</span></td><td><code>#2d5a27</code></td></tr>
+            <tr><td><span class="label-chip" style="background:#b08800">Reporting / Drafting</span></td><td><code>#b08800</code></td></tr>
+            <tr><td><span class="label-chip" style="background:#d93f0b">Review / QA</span></td><td><code>#d93f0b</code></td></tr>
+            <tr><td><span class="label-chip" style="background:#666666">Delivered / Closed</span></td><td><code>#666666</code></td></tr>
+          </table>
+          <h4>Task Type Labels</h4>
+          <table>
+            <tr><td><span class="label-chip" style="background:#0075ca">Fieldwork</span></td><td><code>#0075ca</code></td></tr>
+            <tr><td><span class="label-chip" style="background:#008672">Reporting</span></td><td><code>#008672</code></td></tr>
+            <tr><td><span class="label-chip" style="background:#7057ff">Proposal</span></td><td><code>#7057ff</code></td></tr>
+            <tr><td><span class="label-chip" style="background:#b60205">Permitting</span></td><td><code>#b60205</code></td></tr>
+            <tr><td><span class="label-chip" style="background:#1d76db">GIS / Data</span></td><td><code>#1d76db</code></td></tr>
+            <tr><td><span class="label-chip" style="background:#aaaaaa;color:#333">Admin</span></td><td><code>#aaaaaa</code></td></tr>
+            <tr><td><span class="label-chip" style="background:#c2e0c6;color:#333">Other</span></td><td><code>#c2e0c6</code></td></tr>
+          </table>
+          <h4>Priority Labels</h4>
+          <table>
+            <tr><td><span class="label-chip" style="background:#d73a4a">Priority: High</span></td><td><code>#d73a4a</code></td></tr>
+            <tr><td><span class="label-chip" style="background:#b08800">Priority: Medium</span></td><td><code>#b08800</code></td></tr>
+            <tr><td><span class="label-chip" style="background:#999999">Priority: Low</span></td><td><code>#999999</code></td></tr>
+          </table>
+        </div>
+      </details>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MAIN APP ===================== -->
+<div id="app" class="hidden">
+
+  <header class="app-header">
+    <div class="header-left">
+      <span class="logo-icon">&#127807;</span>
+      <span class="logo-text">Fraxinus Kanban</span>
+    </div>
+    <div class="header-center">
+      <div class="view-toggle">
+        <button class="view-btn active" data-view="board">Board</button>
+        <button class="view-btn" data-view="people">People</button>
+      </div>
+    </div>
+    <div class="header-right">
+      <button id="refresh-btn" class="btn btn-header" title="Refresh data (R)">&#8635; Refresh</button>
+      <button id="settings-btn" class="btn btn-header btn-icon" title="Settings">&#9881;</button>
+    </div>
+  </header>
+
+  <div class="filter-bar">
+    <div class="filter-group">
+      <label for="milestone-filter">Project:</label>
+      <select id="milestone-filter">
+        <option value="">All Projects</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label for="assignee-filter">Assignee:</label>
+      <select id="assignee-filter">
+        <option value="">All People</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label for="type-filter">Task Type:</label>
+      <select id="type-filter">
+        <option value="">All Types</option>
+        <option>Fieldwork</option>
+        <option>Reporting</option>
+        <option>Proposal</option>
+        <option>Permitting</option>
+        <option>GIS / Data</option>
+        <option>Admin</option>
+        <option>Other</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label for="priority-filter">Priority:</label>
+      <select id="priority-filter">
+        <option value="">All Priorities</option>
+        <option value="Priority: High">High</option>
+        <option value="Priority: Medium">Medium</option>
+        <option value="Priority: Low">Low</option>
+      </select>
+    </div>
+    <button id="clear-filters-btn" class="btn btn-ghost btn-sm">Clear</button>
+    <div id="active-filter-indicator" class="filter-indicator hidden">Filtered</div>
+  </div>
+
+  <!-- Board View -->
+  <div id="board-view" class="view-container">
+    <div id="board" class="board"></div>
+  </div>
+
+  <!-- People View -->
+  <div id="people-view" class="view-container hidden">
+    <div id="people-grid" class="people-grid"></div>
+  </div>
+
+</div>
+
+<!-- Loading overlay -->
+<div id="loading-overlay" class="loading-overlay hidden">
+  <div class="spinner"></div>
+  <p>Loading&hellip;</p>
+</div>
+
+<!-- Toast notifications -->
+<div id="toast-container" class="toast-container" role="status" aria-live="polite"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
