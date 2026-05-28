@@ -914,6 +914,12 @@ a { color: var(--green-dark); }
 .toast.success { background: var(--green-dark); }
 .toast.error   { background: var(--red-dark); }
 .toast.warning { background: #92650a; }
+.toast-confirm { display: flex; align-items: center; gap: 10px; background: #3d2020; }
+.toast-btn { padding: 4px 10px; border-radius: 4px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; }
+.toast-btn-yes { background: var(--red); color: #fff; }
+.toast-btn-yes:hover { background: var(--red-dark); }
+.toast-btn-no  { background: rgba(255,255,255,0.15); color: #fff; }
+.toast-btn-no:hover  { background: rgba(255,255,255,0.25); }
 @keyframes toast-in { from { transform: translateY(10px); opacity: 0; } to { transform: none; opacity: 1; } }
 
 /* ============================================================

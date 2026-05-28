@@ -936,24 +936,24 @@ async function saveTask() {
   }
 }
 
-async function handleCloseIssue() {
+function handleCloseIssue() {
   if (!modal.editingIssue) return;
   const issue = modal.editingIssue;
-  if (!confirm(`Close issue #${issue.number}: "${issue.title}"?\n\nThis will close it in GitHub.`)) return;
-
-  const btn = el('tm-close-issue');
-  btn.disabled = true; btn.textContent = 'Closing…';
-  try {
-    const res = await ghFetch(`repos/${state.owner}/${state.repo}/issues/${issue.number}`,
-      state.token, { method: 'PATCH', body: JSON.stringify({ state: 'closed' }) });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    state.issues = state.issues.filter(i => i.number !== issue.number);
-    closeTaskModal(); renderBoard(); renderPeople(); populateFilterSelects();
-    toast('Issue closed', 'success');
-  } catch (err) {
-    showError('tm-error', `Could not close issue: ${err.message}`);
-    btn.disabled = false; btn.textContent = 'Close Issue';
-  }
+  confirmToast(`Delete "${issue.title}"?`, async () => {
+    const btn = el('tm-close-issue');
+    btn.disabled = true; btn.textContent = 'Deleting…';
+    try {
+      const res = await ghFetch(`repos/${state.owner}/${state.repo}/issues/${issue.number}`,
+        state.token, { method: 'PATCH', body: JSON.stringify({ state: 'closed' }) });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      state.issues = state.issues.filter(i => i.number !== issue.number);
+      closeTaskModal(); renderBoard(); renderPeople(); populateFilterSelects();
+      toast('Task deleted', 'success');
+    } catch (err) {
+      showError('tm-error', `Could not delete task: ${err.message}`);
+      btn.disabled = false; btn.textContent = 'Delete Task';
+    }
+  });
 }
 
 // ============================================================
@@ -1412,4 +1412,18 @@ function toast(msg, type = 'info') {
   t.className = `toast${type !== 'info' ? ` ${type}` : ''}`; t.textContent = msg;
   el('toast-container').appendChild(t);
   setTimeout(() => t.remove(), 4500);
+}
+
+function confirmToast(msg, onConfirm) {
+  const t = document.createElement('div');
+  t.className = 'toast toast-confirm';
+  const text = document.createElement('span'); text.textContent = msg;
+  const yes = document.createElement('button'); yes.className = 'toast-btn toast-btn-yes'; yes.textContent = 'Delete';
+  const no  = document.createElement('button'); no.className  = 'toast-btn toast-btn-no';  no.textContent  = 'Cancel';
+  t.appendChild(text); t.appendChild(yes); t.appendChild(no);
+  el('toast-container').appendChild(t);
+  const dismiss = () => t.remove();
+  const timer = setTimeout(dismiss, 6000);
+  yes.addEventListener('click', () => { clearTimeout(timer); dismiss(); onConfirm(); });
+  no.addEventListener('click',  () => { clearTimeout(timer); dismiss(); });
 }
