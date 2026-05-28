@@ -105,6 +105,13 @@ document.addEventListener('DOMContentLoaded', () => {
 // Event Bindings
 // ============================================================
 
+function addBackdropClose(overlayId, closeFn) {
+  let downOnBackdrop = false;
+  const overlay = el(overlayId);
+  overlay.addEventListener('mousedown', e => { downOnBackdrop = e.target === overlay; });
+  overlay.addEventListener('click',     e => { if (e.target === overlay && downOnBackdrop) closeFn(); });
+}
+
 function bindUIEvents() {
   // Setup modal
   el('save-setup-btn').addEventListener('click', handleSetupSave);
@@ -135,7 +142,7 @@ function bindUIEvents() {
   el('tm-save').addEventListener('click', saveTask);
   el('tm-close-issue').addEventListener('click', handleCloseIssue);
   el('tm-new-project-btn').addEventListener('click', () => openProjectModal());
-  el('task-modal').addEventListener('click', e => { if (e.target === el('task-modal')) closeTaskModal(); });
+  addBackdropClose('task-modal', closeTaskModal);
 
   // Assignee picker
   el('tm-ap-trigger').addEventListener('click', e => { e.stopPropagation(); toggleAssigneePicker(); });
@@ -151,12 +158,12 @@ function bindUIEvents() {
   el('pm-x').addEventListener('click', closeProjectModal);
   el('pm-cancel').addEventListener('click', closeProjectModal);
   el('pm-save').addEventListener('click', saveProject);
-  el('project-modal').addEventListener('click', e => { if (e.target === el('project-modal')) closeProjectModal(); });
+  addBackdropClose('project-modal', closeProjectModal);
 
   // Team modal
   el('team-x').addEventListener('click', closeTeamModal);
   el('team-done').addEventListener('click', closeTeamModal);
-  el('team-modal').addEventListener('click', e => { if (e.target === el('team-modal')) closeTeamModal(); });
+  addBackdropClose('team-modal', closeTeamModal);
   el('team-add-btn').addEventListener('click', () =>
     addTeamMember(el('team-add-name').value, el('team-add-github').value)
   );
