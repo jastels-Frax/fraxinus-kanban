@@ -11,12 +11,12 @@
 <!-- ===================== SETUP MODAL ===================== -->
 <div id="setup-modal" class="modal-overlay hidden">
   <div class="modal">
-    <div class="modal-header">
+    <div class="modal-brand-header">
       <div class="modal-logo">&#127807;</div>
       <h2>Fraxinus Kanban</h2>
       <p>Environmental &amp; Geomatics Task Board</p>
     </div>
-    <div class="modal-body">
+    <div class="modal-content">
       <div class="setup-steps">
         <h3>First-time Setup</h3>
         <ol>
@@ -26,27 +26,25 @@
           <li>Create the required labels in your repo (see the list below)</li>
         </ol>
       </div>
-
-      <div class="form-group">
-        <label for="pat-input">GitHub Personal Access Token</label>
-        <input type="password" id="pat-input" placeholder="ghp_xxxxxxxxxxxx" autocomplete="off" />
+      <div class="field-group">
+        <label class="field-label" for="pat-input">GitHub Personal Access Token</label>
+        <input class="field-input" type="password" id="pat-input" placeholder="ghp_xxxxxxxxxxxx" autocomplete="off" />
       </div>
       <div class="form-row">
-        <div class="form-group">
-          <label for="owner-input">Repository Owner</label>
-          <input type="text" id="owner-input" value="jastels-frax" />
+        <div class="field-group">
+          <label class="field-label" for="owner-input">Repository Owner</label>
+          <input class="field-input" type="text" id="owner-input" value="jastels-frax" />
         </div>
-        <div class="form-group">
-          <label for="repo-input">Repository Name</label>
-          <input type="text" id="repo-input" value="fraxinus-kanban" />
+        <div class="field-group">
+          <label class="field-label" for="repo-input">Repository Name</label>
+          <input class="field-input" type="text" id="repo-input" value="fraxinus-kanban" />
         </div>
       </div>
-
       <div id="setup-error" class="error-msg hidden"></div>
       <button id="save-setup-btn" class="btn btn-primary btn-full">Connect to GitHub</button>
 
       <details class="label-setup">
-        <summary>Required GitHub Labels — copy these into your repo</summary>
+        <summary>Required GitHub Labels — create these in your repo</summary>
         <div class="label-list">
           <h4>Stage Labels (Kanban Columns)</h4>
           <table>
@@ -80,6 +78,165 @@
   </div>
 </div>
 
+<!-- ===================== TASK MODAL (create / edit) ===================== -->
+<div id="task-modal" class="modal-overlay hidden">
+  <div class="modal modal-wide">
+    <div class="modal-topbar">
+      <div class="modal-topbar-left">
+        <span id="tm-heading">New Task</span>
+        <span id="tm-number" class="issue-badge hidden"></span>
+      </div>
+      <button class="modal-x" id="tm-x" aria-label="Close">&#x2715;</button>
+    </div>
+
+    <div class="modal-content">
+      <!-- Title -->
+      <div class="field-group">
+        <label class="field-label" for="tm-title">Title <span class="req">*</span></label>
+        <input class="field-input field-input-lg" type="text" id="tm-title" placeholder="What needs to be done?" />
+      </div>
+
+      <!-- Stage + Project row -->
+      <div class="field-row">
+        <div class="field-group">
+          <label class="field-label" for="tm-stage">Stage <span class="req">*</span></label>
+          <select class="field-select" id="tm-stage"></select>
+        </div>
+        <div class="field-group field-grow">
+          <label class="field-label">
+            Project
+            <button type="button" class="inline-link" id="tm-new-project-btn">+ New project</button>
+          </label>
+          <select class="field-select" id="tm-milestone">
+            <option value="">No project</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Type + Priority + Due Date row -->
+      <div class="field-row">
+        <div class="field-group">
+          <label class="field-label" for="tm-type">Task Type</label>
+          <select class="field-select" id="tm-type"></select>
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="tm-priority">Priority</label>
+          <select class="field-select" id="tm-priority">
+            <option value="">None</option>
+            <option value="Priority: High">&#x1F534; High</option>
+            <option value="Priority: Medium">&#x1F7E1; Medium</option>
+            <option value="Priority: Low">&#x26AA; Low</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="tm-due">Due Date</label>
+          <input class="field-input" type="date" id="tm-due" />
+        </div>
+      </div>
+
+      <!-- Assignees -->
+      <div class="field-group">
+        <label class="field-label">Assignees</label>
+        <div class="ap" id="tm-ap">
+          <div class="ap-trigger" id="tm-ap-trigger" tabindex="0" role="button" aria-haspopup="listbox" aria-expanded="false">
+            <div class="ap-chips" id="tm-ap-chips">
+              <span class="ap-placeholder">Unassigned &mdash; click to assign</span>
+            </div>
+            <span class="ap-caret">&#9660;</span>
+          </div>
+          <div class="ap-dropdown hidden" id="tm-ap-dropdown">
+            <div class="ap-search-row">
+              <input type="text" class="ap-search" id="tm-ap-search" placeholder="&#128269; Search team members&hellip;" autocomplete="off" />
+            </div>
+            <ul class="ap-list" id="tm-ap-list"></ul>
+            <div class="ap-add-row">
+              <input type="text" class="ap-add-input" id="tm-ap-manual" placeholder="Add by GitHub username&hellip;" autocomplete="off" />
+              <button type="button" class="btn btn-sm btn-secondary-sm" id="tm-ap-manual-btn">Add</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Description -->
+      <div class="field-group">
+        <label class="field-label" for="tm-body">Description / Notes</label>
+        <textarea class="field-textarea" id="tm-body" rows="4" placeholder="Additional context, references, field notes&hellip;"></textarea>
+      </div>
+
+      <div id="tm-error" class="error-msg hidden"></div>
+    </div>
+
+    <div class="modal-footer">
+      <a id="tm-gh-link" href="#" target="_blank" rel="noopener" class="modal-gh-link hidden">View on GitHub &#8599;</a>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="tm-cancel">Cancel</button>
+        <button type="button" class="btn btn-danger hidden" id="tm-close-issue">Close Issue</button>
+        <button type="button" class="btn btn-primary" id="tm-save">Create Task</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== PROJECT MODAL (create milestone) ===================== -->
+<div id="project-modal" class="modal-overlay modal-stacked hidden">
+  <div class="modal modal-sm">
+    <div class="modal-topbar">
+      <span class="modal-topbar-left">New Project</span>
+      <button class="modal-x" id="pm-x" aria-label="Close">&#x2715;</button>
+    </div>
+    <div class="modal-content">
+      <div class="field-group">
+        <label class="field-label" for="pm-name">Project Name <span class="req">*</span></label>
+        <input class="field-input" type="text" id="pm-name" placeholder="e.g. Hope Brook Rare Plant Survey" />
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="pm-desc">Description</label>
+        <input class="field-input" type="text" id="pm-desc" placeholder="Optional description" />
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="pm-due">Target Completion Date</label>
+        <input class="field-input" type="date" id="pm-due" />
+      </div>
+      <div id="pm-error" class="error-msg hidden"></div>
+    </div>
+    <div class="modal-footer">
+      <div class="modal-actions" style="width:100%;justify-content:flex-end">
+        <button type="button" class="btn btn-ghost" id="pm-cancel">Cancel</button>
+        <button type="button" class="btn btn-primary" id="pm-save">Create Project</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== TEAM MODAL ===================== -->
+<div id="team-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-topbar">
+      <span class="modal-topbar-left">&#128101; Team Members</span>
+      <button class="modal-x" id="team-x" aria-label="Close">&#x2715;</button>
+    </div>
+    <div class="modal-content">
+      <p class="help-text">Team members listed here appear in the assignee picker when creating or editing tasks.</p>
+      <div id="team-list" class="team-list"></div>
+
+      <div class="field-group" style="margin-top:18px">
+        <label class="field-label">Add Team Member</label>
+        <div class="input-btn-row">
+          <input class="field-input" type="text" id="team-add-input" placeholder="GitHub username (e.g. jsmith)" autocomplete="off" />
+          <button type="button" class="btn btn-primary" id="team-add-btn">Add</button>
+        </div>
+        <p class="help-subtext">Enter their GitHub username. They will also be invited as a repository collaborator if you have admin access.</p>
+      </div>
+      <div id="team-error" class="error-msg hidden"></div>
+    </div>
+    <div class="modal-footer">
+      <div class="modal-actions" style="width:100%;justify-content:flex-end">
+        <button type="button" class="btn btn-primary" id="team-done">Done</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ===================== MAIN APP ===================== -->
 <div id="app" class="hidden">
 
@@ -95,7 +252,9 @@
       </div>
     </div>
     <div class="header-right">
-      <button id="refresh-btn" class="btn btn-header" title="Refresh data (R)">&#8635; Refresh</button>
+      <button id="new-task-btn" class="btn btn-new-task" title="New task (N)">&#xff0b; New Task</button>
+      <button id="team-btn" class="btn btn-header" title="Manage team">&#128101; Team</button>
+      <button id="refresh-btn" class="btn btn-header" title="Refresh (R)">&#8635;</button>
       <button id="settings-btn" class="btn btn-header btn-icon" title="Settings">&#9881;</button>
     </div>
   </header>
@@ -103,61 +262,48 @@
   <div class="filter-bar">
     <div class="filter-group">
       <label for="milestone-filter">Project:</label>
-      <select id="milestone-filter">
-        <option value="">All Projects</option>
-      </select>
+      <select id="milestone-filter"><option value="">All Projects</option></select>
     </div>
     <div class="filter-group">
       <label for="assignee-filter">Assignee:</label>
-      <select id="assignee-filter">
-        <option value="">All People</option>
-      </select>
+      <select id="assignee-filter"><option value="">All People</option></select>
     </div>
     <div class="filter-group">
       <label for="type-filter">Task Type:</label>
       <select id="type-filter">
         <option value="">All Types</option>
-        <option>Fieldwork</option>
-        <option>Reporting</option>
-        <option>Proposal</option>
-        <option>Permitting</option>
-        <option>GIS / Data</option>
-        <option>Admin</option>
-        <option>Other</option>
+        <option>Fieldwork</option><option>Reporting</option><option>Proposal</option>
+        <option>Permitting</option><option>GIS / Data</option><option>Admin</option><option>Other</option>
       </select>
     </div>
     <div class="filter-group">
       <label for="priority-filter">Priority:</label>
       <select id="priority-filter">
-        <option value="">All Priorities</option>
+        <option value="">All</option>
         <option value="Priority: High">High</option>
         <option value="Priority: Medium">Medium</option>
         <option value="Priority: Low">Low</option>
       </select>
     </div>
     <button id="clear-filters-btn" class="btn btn-ghost btn-sm">Clear</button>
-    <div id="active-filter-indicator" class="filter-indicator hidden">Filtered</div>
+    <div id="filter-badge" class="filter-badge hidden">Filtered</div>
   </div>
 
-  <!-- Board View -->
   <div id="board-view" class="view-container">
     <div id="board" class="board"></div>
   </div>
 
-  <!-- People View -->
   <div id="people-view" class="view-container hidden">
     <div id="people-grid" class="people-grid"></div>
   </div>
 
 </div>
 
-<!-- Loading overlay -->
 <div id="loading-overlay" class="loading-overlay hidden">
   <div class="spinner"></div>
   <p>Loading&hellip;</p>
 </div>
 
-<!-- Toast notifications -->
 <div id="toast-container" class="toast-container" role="status" aria-live="polite"></div>
 
 <script src="app.js"></script>

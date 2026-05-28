@@ -1,11 +1,8 @@
-/* ============================================================
-   Fraxinus Kanban — app.js
-   GitHub Issues-backed Kanban board
-   ============================================================ */
-
 'use strict';
 
-// ---- Constants ----
+// ============================================================
+// Constants
+// ============================================================
 
 const STAGE_LABELS = [
   'Proposal / Scoping',
@@ -18,13 +15,13 @@ const STAGE_LABELS = [
 ];
 
 const STAGE_COLORS = {
-  'Proposal / Scoping':     '#0052cc',
-  'Permitting / Regulatory':'#5319e7',
-  'Field Scheduled':        '#006b75',
-  'Field Active':           '#2d5a27',
-  'Reporting / Drafting':   '#b08800',
-  'Review / QA':            '#d93f0b',
-  'Delivered / Closed':     '#666666',
+  'Proposal / Scoping':      '#0052cc',
+  'Permitting / Regulatory': '#5319e7',
+  'Field Scheduled':         '#006b75',
+  'Field Active':            '#2d5a27',
+  'Reporting / Drafting':    '#b08800',
+  'Review / QA':             '#d93f0b',
+  'Delivered / Closed':      '#666666',
 };
 
 const TASK_TYPE_LABELS = [
@@ -35,7 +32,9 @@ const PRIORITY_LABELS = [
   'Priority: High', 'Priority: Medium', 'Priority: Low',
 ];
 
-// ---- State ----
+// ============================================================
+// Application State
+// ============================================================
 
 const state = {
   token:         null,
@@ -46,15 +45,19 @@ const state = {
   collaborators: [],
   view:          'board',
   draggedIssue:  null,
-  filters: {
-    milestone: '',
-    assignee:  '',
-    type:      '',
-    priority:  '',
-  },
+  filters: { milestone: '', assignee: '', type: '', priority: '' },
 };
 
-// ---- Bootstrap ----
+// Task modal working state
+const modal = {
+  editingIssue:      null,
+  selectedAssignees: [],
+  pickerOpen:        false,
+};
+
+// ============================================================
+// Bootstrap
+// ============================================================
 
 document.addEventListener('DOMContentLoaded', () => {
   state.token = localStorage.getItem('gh_token');
@@ -62,7 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
   state.repo  = localStorage.getItem('gh_repo')  || 'fraxinus-kanban';
 
   if (!state.token) {
-    showSetupModal();
+    document.getElementById('setup-modal').classList.remove('hidden');
   } else {
     document.getElementById('app').classList.remove('hidden');
     loadData();
@@ -71,99 +74,116 @@ document.addEventListener('DOMContentLoaded', () => {
   bindUIEvents();
 });
 
-// ---- Event Bindings ----
+// ============================================================
+// Event Bindings
+// ============================================================
 
 function bindUIEvents() {
   // Setup modal
-  document.getElementById('save-setup-btn').addEventListener('click', handleSetupSave);
-  document.getElementById('pat-input').addEventListener('keydown', e => {
-    if (e.key === 'Enter') handleSetupSave();
-  });
+  el('save-setup-btn').addEventListener('click', handleSetupSave);
+  el('pat-input').addEventListener('keydown', e => { if (e.key === 'Enter') handleSetupSave(); });
 
-  // View toggle buttons
+  // View toggle
   document.querySelectorAll('.view-btn').forEach(btn => {
     btn.addEventListener('click', () => switchView(btn.dataset.view));
   });
 
-  // Filter controls
+  // Filters
   ['milestone-filter', 'assignee-filter', 'type-filter', 'priority-filter'].forEach(id => {
-    document.getElementById(id).addEventListener('change', onFilterChange);
+    el(id).addEventListener('change', onFilterChange);
   });
-  document.getElementById('clear-filters-btn').addEventListener('click', clearFilters);
+  el('clear-filters-btn').addEventListener('click', clearFilters);
 
   // Header buttons
-  document.getElementById('refresh-btn').addEventListener('click', () => loadData(true));
-  document.getElementById('settings-btn').addEventListener('click', showSetupModal);
+  el('refresh-btn').addEventListener('click', () => loadData(true));
+  el('settings-btn').addEventListener('click', () => el('setup-modal').classList.remove('hidden'));
+  el('new-task-btn').addEventListener('click', () => openTaskModal());
+  el('team-btn').addEventListener('click', openTeamModal);
 
-  // Keyboard shortcuts
+  // Task modal
+  el('tm-x').addEventListener('click', closeTaskModal);
+  el('tm-cancel').addEventListener('click', closeTaskModal);
+  el('tm-save').addEventListener('click', saveTask);
+  el('tm-close-issue').addEventListener('click', handleCloseIssue);
+  el('tm-new-project-btn').addEventListener('click', openProjectModal);
+  el('task-modal').addEventListener('click', e => { if (e.target === el('task-modal')) closeTaskModal(); });
+
+  // Assignee picker
+  el('tm-ap-trigger').addEventListener('click', e => { e.stopPropagation(); toggleAssigneePicker(); });
+  el('tm-ap-trigger').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleAssigneePicker(); } });
+  el('tm-ap-search').addEventListener('input', e => buildAssigneeList(e.target.value));
+  el('tm-ap-manual-btn').addEventListener('click', addManualAssignee);
+  el('tm-ap-manual').addEventListener('keydown', e => { if (e.key === 'Enter') addManualAssignee(); });
+  document.addEventListener('click', e => {
+    if (modal.pickerOpen && !el('tm-ap').contains(e.target)) closeAssigneePicker();
+  });
+
+  // Project (milestone) modal
+  el('pm-x').addEventListener('click', closeProjectModal);
+  el('pm-cancel').addEventListener('click', closeProjectModal);
+  el('pm-save').addEventListener('click', saveProject);
+  el('project-modal').addEventListener('click', e => { if (e.target === el('project-modal')) closeProjectModal(); });
+
+  // Team modal
+  el('team-x').addEventListener('click', closeTeamModal);
+  el('team-done').addEventListener('click', closeTeamModal);
+  el('team-modal').addEventListener('click', e => { if (e.target === el('team-modal')) closeTeamModal(); });
+  el('team-add-btn').addEventListener('click', () => addTeamMember(el('team-add-input').value.trim()));
+  el('team-add-input').addEventListener('keydown', e => { if (e.key === 'Enter') addTeamMember(el('team-add-input').value.trim()); });
+
+  // Global keyboard shortcuts
   document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      if (!el('project-modal').classList.contains('hidden')) { closeProjectModal(); return; }
+      if (!el('team-modal').classList.contains('hidden'))    { closeTeamModal();    return; }
+      if (!el('task-modal').classList.contains('hidden'))    { closeTaskModal();    return; }
+      if (!el('setup-modal').classList.contains('hidden'))   { el('setup-modal').classList.add('hidden'); return; }
+    }
     const tag = document.activeElement.tagName;
     if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
-    if (e.key === 'n' || e.key === 'N') openNewIssue();
+    if (e.key === 'n' || e.key === 'N') openTaskModal();
     if (e.key === 'r' || e.key === 'R') loadData(true);
   });
 }
 
-// ---- Setup / Auth ----
-
-function showSetupModal() {
-  const modal = document.getElementById('setup-modal');
-  modal.classList.remove('hidden');
-  if (state.token) {
-    document.getElementById('pat-input').value   = state.token;
-    document.getElementById('owner-input').value = state.owner;
-    document.getElementById('repo-input').value  = state.repo;
-  }
-}
+// ============================================================
+// Setup / Auth
+// ============================================================
 
 async function handleSetupSave() {
-  const token = document.getElementById('pat-input').value.trim();
-  const owner = document.getElementById('owner-input').value.trim();
-  const repo  = document.getElementById('repo-input').value.trim();
-  const errEl = document.getElementById('setup-error');
-  errEl.classList.add('hidden');
+  const token = el('pat-input').value.trim();
+  const owner = el('owner-input').value.trim();
+  const repo  = el('repo-input').value.trim();
 
-  if (!token || !owner || !repo) {
-    showSetupError('All fields are required.');
-    return;
-  }
+  if (!token || !owner || !repo) { showError('setup-error', 'All fields are required.'); return; }
 
-  const btn = document.getElementById('save-setup-btn');
-  btn.textContent = 'Connecting…';
-  btn.disabled = true;
+  const btn = el('save-setup-btn');
+  btn.textContent = 'Connecting…'; btn.disabled = true;
+  el('setup-error').classList.add('hidden');
 
   try {
     const res = await ghFetch(`repos/${owner}/${repo}`, token);
     if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(body.message || `HTTP ${res.status}`);
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.message || `HTTP ${res.status}`);
     }
-
-    state.token = token;
-    state.owner = owner;
-    state.repo  = repo;
+    state.token = token; state.owner = owner; state.repo = repo;
     localStorage.setItem('gh_token', token);
     localStorage.setItem('gh_owner', owner);
     localStorage.setItem('gh_repo',  repo);
-
-    document.getElementById('setup-modal').classList.add('hidden');
-    document.getElementById('app').classList.remove('hidden');
+    el('setup-modal').classList.add('hidden');
+    el('app').classList.remove('hidden');
     loadData();
   } catch (err) {
-    showSetupError(`Connection failed: ${err.message}`);
+    showError('setup-error', `Connection failed: ${err.message}`);
   } finally {
-    btn.textContent = 'Connect to GitHub';
-    btn.disabled = false;
+    btn.textContent = 'Connect to GitHub'; btn.disabled = false;
   }
 }
 
-function showSetupError(msg) {
-  const el = document.getElementById('setup-error');
-  el.textContent = msg;
-  el.classList.remove('hidden');
-}
-
-// ---- GitHub API ----
+// ============================================================
+// GitHub API
+// ============================================================
 
 function ghFetch(path, token = state.token, options = {}) {
   return fetch(`https://api.github.com/${path}`, {
@@ -180,14 +200,12 @@ function ghFetch(path, token = state.token, options = {}) {
 async function ghFetchPaginated(path) {
   const results = [];
   let page = 1;
-
   while (true) {
     const sep = path.includes('?') ? '&' : '?';
     const res = await ghFetch(`${path}${sep}per_page=100&page=${page}`);
-
     if (res.status === 401) {
-      toast('Token invalid or expired — please update your settings.', 'error');
-      showSetupModal();
+      toast('Token invalid or expired — update via Settings.', 'error');
+      el('setup-modal').classList.remove('hidden');
       throw new Error('unauthorized');
     }
     if (res.status === 403) {
@@ -196,103 +214,87 @@ async function ghFetchPaginated(path) {
       toast(`GitHub rate limit reached.${when}`, 'error');
       throw new Error('rate-limited');
     }
-    if (!res.ok) {
-      throw new Error(`GitHub API error ${res.status}`);
-    }
-
+    if (!res.ok) throw new Error(`API error ${res.status}`);
     const data = await res.json();
     if (!Array.isArray(data)) { results.push(data); break; }
     results.push(...data);
-
-    const link = res.headers.get('Link') || '';
-    if (!link.includes('rel="next"')) break;
+    if (!(res.headers.get('Link') || '').includes('rel="next"')) break;
     page++;
   }
-
   return results;
 }
 
-// ---- Data Loading ----
+// ============================================================
+// Data Loading
+// ============================================================
 
-async function loadData(forceRefresh = false) {
+async function loadData() {
   if (!state.token) return;
   showLoading(true);
-
   try {
     const [issuesRaw, milestones, collaborators] = await Promise.all([
       ghFetchPaginated(`repos/${state.owner}/${state.repo}/issues?state=open`),
       ghFetchPaginated(`repos/${state.owner}/${state.repo}/milestones?state=open`).catch(() => []),
       ghFetchPaginated(`repos/${state.owner}/${state.repo}/collaborators`).catch(() => []),
     ]);
-
-    // Exclude pull requests from the issues list
-    state.issues       = issuesRaw.filter(i => !i.pull_request);
-    state.milestones   = milestones;
+    state.issues        = issuesRaw.filter(i => !i.pull_request);
+    state.milestones    = milestones;
     state.collaborators = collaborators;
-
     populateFilterSelects();
     renderBoard();
     renderPeople();
   } catch (err) {
     if (err.message !== 'unauthorized' && err.message !== 'rate-limited') {
-      toast(`Failed to load data: ${err.message}`, 'error');
+      toast(`Failed to load: ${err.message}`, 'error');
     }
   } finally {
     showLoading(false);
   }
 }
 
-// ---- Filters ----
+// ============================================================
+// Filters
+// ============================================================
 
 function populateFilterSelects() {
-  // Milestone select
-  const msEl  = document.getElementById('milestone-filter');
-  const curMs = msEl.value;
+  const msEl = el('milestone-filter'); const curMs = msEl.value;
   msEl.innerHTML = '<option value="">All Projects</option>';
   state.milestones.forEach(m => {
     const o = document.createElement('option');
-    o.value       = m.title;
-    o.textContent = m.title;
+    o.value = o.textContent = m.title;
     msEl.appendChild(o);
   });
   msEl.value = curMs;
 
-  // Assignee select (built from open issues)
-  const aEl  = document.getElementById('assignee-filter');
-  const curA = aEl.value;
+  const aEl = el('assignee-filter'); const curA = aEl.value;
   aEl.innerHTML = '<option value="">All People</option>';
   const seen = new Set();
-  state.issues.forEach(issue => {
-    (issue.assignees || []).concat(issue.assignee ? [issue.assignee] : [])
-      .forEach(a => {
-        if (!seen.has(a.login)) {
-          seen.add(a.login);
-          const o = document.createElement('option');
-          o.value = o.textContent = a.login;
-          aEl.appendChild(o);
-        }
-      });
+  state.issues.forEach(i => {
+    allAssignees(i).forEach(a => {
+      if (!seen.has(a.login)) {
+        seen.add(a.login);
+        const o = document.createElement('option');
+        o.value = o.textContent = a.login;
+        aEl.appendChild(o);
+      }
+    });
   });
   aEl.value = curA;
 }
 
 function onFilterChange() {
-  state.filters.milestone = document.getElementById('milestone-filter').value;
-  state.filters.assignee  = document.getElementById('assignee-filter').value;
-  state.filters.type      = document.getElementById('type-filter').value;
-  state.filters.priority  = document.getElementById('priority-filter').value;
-
-  const anyActive = Object.values(state.filters).some(Boolean);
-  document.getElementById('active-filter-indicator').classList.toggle('hidden', !anyActive);
+  state.filters.milestone = el('milestone-filter').value;
+  state.filters.assignee  = el('assignee-filter').value;
+  state.filters.type      = el('type-filter').value;
+  state.filters.priority  = el('priority-filter').value;
+  el('filter-badge').classList.toggle('hidden', !Object.values(state.filters).some(Boolean));
   renderBoard();
 }
 
 function clearFilters() {
-  ['milestone-filter', 'assignee-filter', 'type-filter', 'priority-filter'].forEach(id => {
-    document.getElementById(id).value = '';
-  });
+  ['milestone-filter', 'assignee-filter', 'type-filter', 'priority-filter'].forEach(id => { el(id).value = ''; });
   state.filters = { milestone: '', assignee: '', type: '', priority: '' };
-  document.getElementById('active-filter-indicator').classList.add('hidden');
+  el('filter-badge').classList.add('hidden');
   renderBoard();
 }
 
@@ -300,89 +302,59 @@ function applyFilters(issues) {
   const { milestone, assignee, type, priority } = state.filters;
   return issues.filter(issue => {
     if (milestone && (!issue.milestone || issue.milestone.title !== milestone)) return false;
-
-    if (assignee) {
-      const assignees = new Set(
-        (issue.assignees || []).concat(issue.assignee ? [issue.assignee] : []).map(a => a.login)
-      );
-      if (!assignees.has(assignee)) return false;
-    }
-
-    const labelNames = issue.labels.map(l => l.name);
-    if (type     && !labelNames.includes(type))     return false;
-    if (priority && !labelNames.includes(priority)) return false;
-
+    if (assignee  && !new Set(allAssignees(issue).map(a => a.login)).has(assignee)) return false;
+    const lns = issue.labels.map(l => l.name);
+    if (type     && !lns.includes(type))     return false;
+    if (priority && !lns.includes(priority)) return false;
     return true;
   });
 }
 
-// ---- Board Render ----
+// ============================================================
+// Board
+// ============================================================
 
 function renderBoard() {
-  const board = document.getElementById('board');
+  const board = el('board');
   board.innerHTML = '';
-
   const visible = applyFilters(state.issues);
-
   STAGE_LABELS.forEach(stage => {
-    const stageIssues = visible.filter(i => i.labels.some(l => l.name === stage));
-    board.appendChild(buildColumn(stage, stageIssues));
+    board.appendChild(buildColumn(stage, visible.filter(i => i.labels.some(l => l.name === stage))));
   });
 }
 
 function buildColumn(stage, issues) {
   const col = document.createElement('div');
-  col.className    = 'column';
+  col.className = 'column';
   col.dataset.stage = stage;
 
   // Header
-  const header = document.createElement('div');
-  header.className = 'column-header';
-
-  const titleWrap = document.createElement('div');
-  titleWrap.className = 'column-title-wrap';
-
+  const hdr = document.createElement('div');
+  hdr.className = 'column-header';
+  const wrap = document.createElement('div');
+  wrap.className = 'column-title-wrap';
   const dot = document.createElement('span');
-  dot.className   = 'column-dot';
+  dot.className = 'column-dot';
   dot.style.background = STAGE_COLORS[stage];
-
   const title = document.createElement('span');
-  title.className   = 'column-title';
+  title.className = 'column-title';
   title.textContent = stage;
-
-  titleWrap.appendChild(dot);
-  titleWrap.appendChild(title);
-
+  wrap.appendChild(dot); wrap.appendChild(title);
   const count = document.createElement('span');
-  count.className   = 'column-count';
+  count.className = 'column-count';
   count.textContent = issues.length;
-
-  header.appendChild(titleWrap);
-  header.appendChild(count);
-  col.appendChild(header);
+  hdr.appendChild(wrap); hdr.appendChild(count);
+  col.appendChild(hdr);
 
   // Body (drop zone)
   const body = document.createElement('div');
   body.className = 'column-body';
-
-  body.addEventListener('dragover', e => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    col.classList.add('drop-active');
-  });
-  body.addEventListener('dragleave', e => {
-    if (!col.contains(e.relatedTarget)) {
-      col.classList.remove('drop-active');
-    }
-  });
+  body.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; col.classList.add('drop-active'); });
+  body.addEventListener('dragleave', e => { if (!col.contains(e.relatedTarget)) col.classList.remove('drop-active'); });
   body.addEventListener('drop', e => {
-    e.preventDefault();
-    col.classList.remove('drop-active');
-    if (state.draggedIssue) {
-      moveIssueToStage(state.draggedIssue, stage);
-    }
+    e.preventDefault(); col.classList.remove('drop-active');
+    if (state.draggedIssue) moveIssueToStage(state.draggedIssue, stage);
   });
-
   issues.forEach(issue => body.appendChild(buildCard(issue)));
   col.appendChild(body);
 
@@ -390,9 +362,9 @@ function buildColumn(stage, issues) {
   const footer = document.createElement('div');
   footer.className = 'column-footer';
   const addBtn = document.createElement('button');
-  addBtn.className   = 'btn add-task-btn';
+  addBtn.className = 'add-task-btn';
   addBtn.textContent = '+ Add Task';
-  addBtn.addEventListener('click', () => openNewIssue(stage));
+  addBtn.addEventListener('click', () => openTaskModal(null, stage));
   footer.appendChild(addBtn);
   col.appendChild(footer);
 
@@ -401,20 +373,24 @@ function buildColumn(stage, issues) {
 
 function buildCard(issue) {
   const card = document.createElement('div');
-  card.className            = 'card';
-  card.draggable            = true;
-  card.dataset.issueNumber  = issue.number;
+  card.className = 'card';
+  card.draggable = true;
+  card.dataset.issueNumber = issue.number;
 
-  const labelNames = issue.labels.map(l => l.name);
-  const priority   = PRIORITY_LABELS.find(p => labelNames.includes(p));
+  const priority = PRIORITY_LABELS.find(p => issue.labels.some(l => l.name === p));
   if (priority) card.dataset.priority = priority;
 
-  // Drag events
+  // Click anywhere on card → edit modal
+  card.addEventListener('click', () => {
+    if (card.classList.contains('dragging')) return;
+    openTaskModal(issue);
+  });
+
+  // Drag
   card.addEventListener('dragstart', e => {
     state.draggedIssue = issue;
     card.classList.add('dragging');
     e.dataTransfer.effectAllowed = 'move';
-    // Required for Firefox
     e.dataTransfer.setData('text/plain', String(issue.number));
   });
   card.addEventListener('dragend', () => {
@@ -422,280 +398,650 @@ function buildCard(issue) {
     card.classList.remove('dragging');
   });
 
-  // Title
+  // Title (plain text — no link; GitHub link is in the edit modal)
   const titleEl = document.createElement('div');
   titleEl.className = 'card-title';
-  const link = document.createElement('a');
-  link.href    = issue.html_url;
-  link.target  = '_blank';
-  link.rel     = 'noopener noreferrer';
-  link.textContent = issue.title;
-  // Prevent drag from triggering link navigation
-  link.addEventListener('click', e => e.stopPropagation());
-  titleEl.appendChild(link);
+  titleEl.textContent = issue.title;
   card.appendChild(titleEl);
 
-  // Meta section
+  // Meta
   const meta = document.createElement('div');
   meta.className = 'card-meta';
-
   if (issue.milestone) {
     const proj = document.createElement('div');
-    proj.className   = 'card-project';
+    proj.className = 'card-project';
     proj.textContent = `\u{1F4CB} ${issue.milestone.title}`;
     meta.appendChild(proj);
   }
-
-  const assignee = getFirstAssignee(issue);
+  const assignee = allAssignees(issue)[0];
   if (assignee) {
     const aRow = document.createElement('div');
     aRow.className = 'card-assignee';
     const img = document.createElement('img');
     img.className = 'avatar';
-    img.src   = `${assignee.avatar_url}&s=36`;
-    img.alt   = assignee.login;
-    img.title = assignee.login;
+    img.src = avatarUrl(assignee, 36); img.alt = assignee.login;
     img.loading = 'lazy';
     aRow.appendChild(img);
     aRow.appendChild(document.createTextNode(assignee.login));
     meta.appendChild(aRow);
   }
-
   if (meta.children.length) card.appendChild(meta);
 
   // Footer: task type chip + due date
-  const cardFooter = document.createElement('div');
-  cardFooter.className = 'card-footer';
-
   const taskType = issue.labels.find(l => TASK_TYPE_LABELS.includes(l.name));
-  if (taskType) {
-    const chip = document.createElement('span');
-    chip.className   = 'label-chip';
-    chip.textContent = taskType.name;
-    const hex = taskType.color.replace(/^#/, '');
-    chip.style.background = `#${hex}`;
-    chip.style.color = isLightHex(hex) ? '#1a1a1a' : '#ffffff';
-    cardFooter.appendChild(chip);
-  }
-
   const due = parseDueDate(issue.body);
-  if (due) {
-    const dueEl = document.createElement('span');
-    dueEl.className = 'due-date';
-    const today   = new Date(); today.setHours(0, 0, 0, 0);
-    const dueDate = new Date(`${due}T00:00:00`);
-    const days    = Math.ceil((dueDate - today) / 86400000);
-    if (days < 0) {
-      dueEl.classList.add('overdue');
-      dueEl.textContent = `Overdue: ${due}`;
-    } else if (days <= 7) {
-      dueEl.classList.add('soon');
-      dueEl.textContent = `Due: ${due}`;
-    } else {
-      dueEl.textContent = `Due: ${due}`;
+  if (taskType || due) {
+    const footer = document.createElement('div');
+    footer.className = 'card-footer';
+    if (taskType) {
+      const chip = document.createElement('span');
+      chip.className = 'label-chip';
+      chip.textContent = taskType.name;
+      const hex = taskType.color.replace(/^#/, '');
+      chip.style.background = `#${hex}`;
+      chip.style.color = isLightHex(hex) ? '#1a1a1a' : '#fff';
+      footer.appendChild(chip);
     }
-    cardFooter.appendChild(dueEl);
+    if (due) {
+      const dueEl = document.createElement('span');
+      dueEl.className = 'due-date';
+      const today = new Date(); today.setHours(0,0,0,0);
+      const days  = Math.ceil((new Date(`${due}T00:00:00`) - today) / 86400000);
+      if (days < 0) { dueEl.classList.add('overdue'); dueEl.textContent = `Overdue: ${due}`; }
+      else if (days <= 7) { dueEl.classList.add('soon'); dueEl.textContent = `Due: ${due}`; }
+      else { dueEl.textContent = `Due: ${due}`; }
+      footer.appendChild(dueEl);
+    }
+    card.appendChild(footer);
   }
-
-  if (cardFooter.children.length) card.appendChild(cardFooter);
 
   return card;
 }
 
-// ---- People View ----
+// ============================================================
+// People View
+// ============================================================
 
 function renderPeople() {
-  const grid = document.getElementById('people-grid');
+  const grid = el('people-grid');
   grid.innerHTML = '';
-
   const peopleMap = new Map();
-
   state.issues.forEach(issue => {
-    const assignees = (issue.assignees || []).concat(issue.assignee ? [issue.assignee] : []);
     const seen = new Set();
-    assignees.forEach(a => {
+    allAssignees(issue).forEach(a => {
       if (seen.has(a.login)) return;
       seen.add(a.login);
-      if (!peopleMap.has(a.login)) {
-        peopleMap.set(a.login, { user: a, issues: [] });
-      }
+      if (!peopleMap.has(a.login)) peopleMap.set(a.login, { user: a, issues: [] });
       peopleMap.get(a.login).issues.push(issue);
     });
   });
-
   if (peopleMap.size === 0) {
-    const empty = document.createElement('p');
-    empty.className   = 'people-empty';
-    empty.textContent = 'No assignees found on open issues.';
-    grid.appendChild(empty);
-    return;
+    const p = document.createElement('p');
+    p.className = 'people-empty';
+    p.textContent = 'No assignees on open issues.';
+    grid.appendChild(p); return;
   }
-
   Array.from(peopleMap.entries())
     .sort(([a], [b]) => a.localeCompare(b))
-    .forEach(([, { user, issues }]) => {
-      grid.appendChild(buildPersonCard(user, issues));
-    });
+    .forEach(([, { user, issues }]) => grid.appendChild(buildPersonCard(user, issues)));
 }
 
 function buildPersonCard(user, issues) {
   const card = document.createElement('div');
   card.className = 'person-card';
-  card.setAttribute('role', 'button');
   card.setAttribute('tabindex', '0');
   card.title = `Filter board to ${user.login}`;
 
-  // Header
   const hdr = document.createElement('div');
   hdr.className = 'person-header';
-
   const img = document.createElement('img');
   img.className = 'person-avatar';
-  img.src     = `${user.avatar_url}&s=80`;
-  img.alt     = user.login;
-  img.loading = 'lazy';
-
+  img.src = avatarUrl(user, 80); img.alt = user.login; img.loading = 'lazy';
   const info = document.createElement('div');
-
   const nameEl = document.createElement('div');
-  nameEl.className   = 'person-name';
-  nameEl.textContent = user.login;
-
+  nameEl.className = 'person-name'; nameEl.textContent = user.login;
   const cntEl = document.createElement('div');
-  cntEl.className   = 'person-count';
+  cntEl.className = 'person-count';
   cntEl.textContent = `${issues.length} open task${issues.length !== 1 ? 's' : ''}`;
-
-  info.appendChild(nameEl);
-  info.appendChild(cntEl);
-  hdr.appendChild(img);
-  hdr.appendChild(info);
+  info.appendChild(nameEl); info.appendChild(cntEl);
+  hdr.appendChild(img); hdr.appendChild(info);
   card.appendChild(hdr);
 
-  // Stage breakdown
-  const stagesEl = document.createElement('div');
-  stagesEl.className = 'person-stages';
-
+  const stages = document.createElement('div');
+  stages.className = 'person-stages';
   STAGE_LABELS.forEach(stage => {
     const n = issues.filter(i => i.labels.some(l => l.name === stage)).length;
-    if (n === 0) return;
-
+    if (!n) return;
     const row = document.createElement('div');
     row.className = 'person-stage-row';
-
     const dot = document.createElement('span');
-    dot.className        = 'stage-dot';
-    dot.style.background = STAGE_COLORS[stage];
-
-    const nameSpan = document.createElement('span');
-    nameSpan.className   = 'stage-name';
-    nameSpan.textContent = stage;
-
-    const cntSpan = document.createElement('span');
-    cntSpan.className   = 'stage-count';
-    cntSpan.textContent = n;
-
-    row.appendChild(dot);
-    row.appendChild(nameSpan);
-    row.appendChild(cntSpan);
-    stagesEl.appendChild(row);
+    dot.className = 'stage-dot'; dot.style.background = STAGE_COLORS[stage];
+    const nm  = document.createElement('span'); nm.className  = 'stage-name'; nm.textContent  = stage;
+    const cnt = document.createElement('span'); cnt.className = 'stage-count'; cnt.textContent = n;
+    row.appendChild(dot); row.appendChild(nm); row.appendChild(cnt);
+    stages.appendChild(row);
   });
+  card.appendChild(stages);
 
-  card.appendChild(stagesEl);
-
-  // Click / keyboard → filter board by this person
-  const filterToPerson = () => {
-    document.getElementById('assignee-filter').value = user.login;
+  const filterTo = () => {
+    el('assignee-filter').value = user.login;
     state.filters.assignee = user.login;
-    document.getElementById('active-filter-indicator').classList.remove('hidden');
-    switchView('board');
-    renderBoard();
+    el('filter-badge').classList.remove('hidden');
+    switchView('board'); renderBoard();
   };
-  card.addEventListener('click', filterToPerson);
-  card.addEventListener('keydown', e => {
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); filterToPerson(); }
-  });
-
+  card.addEventListener('click', filterTo);
+  card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); filterTo(); } });
   return card;
 }
 
-// ---- Move Issue (Drag & Drop) ----
+// ============================================================
+// Drag & Drop — Move Issue
+// ============================================================
 
 async function moveIssueToStage(issue, newStage) {
-  const currentStages = issue.labels.filter(l => STAGE_LABELS.includes(l.name)).map(l => l.name);
-  if (currentStages.includes(newStage)) return;
-
-  const newLabelNames = issue.labels
-    .map(l => l.name)
-    .filter(n => !STAGE_LABELS.includes(n))
-    .concat(newStage);
-
-  // Optimistic update
-  const originalLabels = issue.labels;
-  issue.labels = [
-    ...issue.labels.filter(l => !STAGE_LABELS.includes(l.name)),
-    { name: newStage, color: STAGE_COLORS[newStage].replace('#', '') },
-  ];
+  if (issue.labels.some(l => l.name === newStage)) return;
+  const newLabels = issue.labels.map(l => l.name).filter(n => !STAGE_LABELS.includes(n)).concat(newStage);
+  const orig = issue.labels;
+  issue.labels = [...issue.labels.filter(l => !STAGE_LABELS.includes(l.name)),
+    { name: newStage, color: STAGE_COLORS[newStage].replace('#', '') }];
   renderBoard();
-
   try {
-    const res = await ghFetch(
-      `repos/${state.owner}/${state.repo}/issues/${issue.number}`,
-      state.token,
-      {
-        method: 'PATCH',
-        body: JSON.stringify({ labels: newLabelNames }),
-      }
-    );
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(body.message || `HTTP ${res.status}`);
-    }
+    const res = await ghFetch(`repos/${state.owner}/${state.repo}/issues/${issue.number}`, state.token,
+      { method: 'PATCH', body: JSON.stringify({ labels: newLabels }) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const updated = await res.json();
     const idx = state.issues.findIndex(i => i.number === issue.number);
     if (idx >= 0) state.issues[idx] = updated;
-    renderBoard();
-    renderPeople();
-    toast(`Moved to "${newStage}"`, 'success');
+    renderBoard(); renderPeople();
+    toast(`Moved to “${newStage}”`, 'success');
   } catch (err) {
-    issue.labels = originalLabels;
-    renderBoard();
-    toast(`Could not move issue: ${err.message}`, 'error');
+    issue.labels = orig; renderBoard();
+    toast(`Could not move task: ${err.message}`, 'error');
   }
 }
 
-// ---- View Switching ----
+// ============================================================
+// Task Modal — Open / Close / Fill
+// ============================================================
+
+function openTaskModal(issue = null, defaultStage = null) {
+  modal.editingIssue      = issue;
+  modal.selectedAssignees = [];
+
+  // Populate stage select
+  const stageEl = el('tm-stage');
+  stageEl.innerHTML = STAGE_LABELS.map(s => `<option value="${s}">${s}</option>`).join('');
+
+  // Populate task type select
+  const typeEl = el('tm-type');
+  typeEl.innerHTML = '<option value="">None</option>' +
+    TASK_TYPE_LABELS.map(t => `<option value="${t}">${t}</option>`).join('');
+
+  // Populate milestone select
+  refreshProjectOptions();
+
+  const saveBtn  = el('tm-save');
+  const closeBtn = el('tm-close-issue');
+  const ghLink   = el('tm-gh-link');
+  el('tm-error').classList.add('hidden');
+
+  if (issue) {
+    el('tm-heading').textContent = 'Edit Task';
+    el('tm-number').textContent  = `#${issue.number}`;
+    el('tm-number').classList.remove('hidden');
+    saveBtn.textContent = 'Save Changes';
+    closeBtn.classList.remove('hidden');
+    ghLink.href = issue.html_url;
+    ghLink.classList.remove('hidden');
+
+    el('tm-title').value = issue.title;
+    const stg = issue.labels.find(l => STAGE_LABELS.includes(l.name));
+    stageEl.value = stg ? stg.name : STAGE_LABELS[0];
+    el('tm-milestone').value = issue.milestone ? String(issue.milestone.number) : '';
+    const typ = issue.labels.find(l => TASK_TYPE_LABELS.includes(l.name));
+    typeEl.value = typ ? typ.name : '';
+    const pri = issue.labels.find(l => PRIORITY_LABELS.includes(l.name));
+    el('tm-priority').value = pri ? pri.name : '';
+    modal.selectedAssignees = [...allAssignees(issue)];
+    const { due, description } = parseBodyParts(issue.body);
+    el('tm-due').value  = due || '';
+    el('tm-body').value = description;
+  } else {
+    el('tm-heading').textContent = 'New Task';
+    el('tm-number').classList.add('hidden');
+    saveBtn.textContent = 'Create Task';
+    closeBtn.classList.add('hidden');
+    ghLink.classList.add('hidden');
+    el('tm-title').value    = '';
+    stageEl.value           = defaultStage || STAGE_LABELS[0];
+    el('tm-milestone').value = '';
+    typeEl.value            = '';
+    el('tm-priority').value = '';
+    el('tm-due').value      = '';
+    el('tm-body').value     = '';
+  }
+
+  updateAssigneeDisplay();
+  buildAssigneeList('');
+  el('task-modal').classList.remove('hidden');
+  setTimeout(() => el('tm-title').focus(), 50);
+}
+
+function closeTaskModal() {
+  el('task-modal').classList.add('hidden');
+  closeAssigneePicker();
+  modal.editingIssue = null;
+  modal.selectedAssignees = [];
+}
+
+function refreshProjectOptions(selectValue = null) {
+  const ms = el('tm-milestone');
+  const current = selectValue !== null ? selectValue : ms.value;
+  ms.innerHTML = '<option value="">No project</option>' +
+    state.milestones.map(m => `<option value="${m.number}">${m.title}</option>`).join('');
+  if (current) ms.value = current;
+}
+
+// ============================================================
+// Task Modal — Save / Close Issue
+// ============================================================
+
+async function saveTask() {
+  const title = el('tm-title').value.trim();
+  if (!title) { showError('tm-error', 'Title is required.'); el('tm-title').focus(); return; }
+
+  const stage    = el('tm-stage').value;
+  const msNum    = el('tm-milestone').value;
+  const taskType = el('tm-type').value;
+  const priority = el('tm-priority').value;
+  const due      = el('tm-due').value;
+  const bodyText = el('tm-body').value.trim();
+
+  const labels = [stage];
+  if (taskType) labels.push(taskType);
+  if (priority) labels.push(priority);
+
+  const payload = {
+    title,
+    body:      buildIssueBody(due, bodyText),
+    labels,
+    milestone: msNum ? Number(msNum) : null,
+    assignees: modal.selectedAssignees.map(a => a.login),
+  };
+
+  const btn = el('tm-save');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  el('tm-error').classList.add('hidden');
+
+  try {
+    let res;
+    if (modal.editingIssue) {
+      res = await ghFetch(`repos/${state.owner}/${state.repo}/issues/${modal.editingIssue.number}`,
+        state.token, { method: 'PATCH', body: JSON.stringify(payload) });
+    } else {
+      res = await ghFetch(`repos/${state.owner}/${state.repo}/issues`,
+        state.token, { method: 'POST', body: JSON.stringify(payload) });
+    }
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.message || `HTTP ${res.status}`);
+    }
+    const updated = await res.json();
+    if (modal.editingIssue) {
+      const idx = state.issues.findIndex(i => i.number === modal.editingIssue.number);
+      if (idx >= 0) state.issues[idx] = updated;
+      toast('Task updated', 'success');
+    } else {
+      state.issues.unshift(updated);
+      toast('Task created', 'success');
+    }
+    closeTaskModal();
+    populateFilterSelects();
+    renderBoard();
+    renderPeople();
+  } catch (err) {
+    showError('tm-error', `Save failed: ${err.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = modal.editingIssue ? 'Save Changes' : 'Create Task';
+  }
+}
+
+async function handleCloseIssue() {
+  if (!modal.editingIssue) return;
+  const issue = modal.editingIssue;
+  if (!confirm(`Close issue #${issue.number}: “${issue.title}”?\n\nThis will close it in GitHub.`)) return;
+
+  const btn = el('tm-close-issue');
+  btn.disabled = true; btn.textContent = 'Closing…';
+
+  try {
+    const res = await ghFetch(`repos/${state.owner}/${state.repo}/issues/${issue.number}`,
+      state.token, { method: 'PATCH', body: JSON.stringify({ state: 'closed' }) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    state.issues = state.issues.filter(i => i.number !== issue.number);
+    closeTaskModal();
+    renderBoard(); renderPeople(); populateFilterSelects();
+    toast('Issue closed', 'success');
+  } catch (err) {
+    showError('tm-error', `Could not close issue: ${err.message}`);
+    btn.disabled = false; btn.textContent = 'Close Issue';
+  }
+}
+
+// ============================================================
+// Project (Milestone) Modal
+// ============================================================
+
+function openProjectModal() {
+  el('pm-name').value = '';
+  el('pm-desc').value = '';
+  el('pm-due').value  = '';
+  el('pm-error').classList.add('hidden');
+  el('project-modal').classList.remove('hidden');
+  setTimeout(() => el('pm-name').focus(), 50);
+}
+
+function closeProjectModal() {
+  el('project-modal').classList.add('hidden');
+}
+
+async function saveProject() {
+  const name = el('pm-name').value.trim();
+  if (!name) { showError('pm-error', 'Project name is required.'); el('pm-name').focus(); return; }
+
+  const btn = el('pm-save');
+  btn.disabled = true; btn.textContent = 'Creating…';
+  el('pm-error').classList.add('hidden');
+
+  try {
+    const payload = { title: name };
+    const desc = el('pm-desc').value.trim();
+    const due  = el('pm-due').value;
+    if (desc) payload.description = desc;
+    if (due)  payload.due_on = `${due}T00:00:00Z`;
+
+    const res = await ghFetch(`repos/${state.owner}/${state.repo}/milestones`,
+      state.token, { method: 'POST', body: JSON.stringify(payload) });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.message || `HTTP ${res.status}`);
+    }
+    const ms = await res.json();
+    state.milestones.unshift(ms);
+    refreshProjectOptions(String(ms.number));
+    populateFilterSelects();
+    closeProjectModal();
+    toast(`Project “${ms.title}” created`, 'success');
+  } catch (err) {
+    showError('pm-error', `Failed: ${err.message}`);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Create Project';
+  }
+}
+
+// ============================================================
+// Team Modal
+// ============================================================
+
+function openTeamModal() {
+  el('team-add-input').value = '';
+  el('team-error').classList.add('hidden');
+  renderTeamList();
+  el('team-modal').classList.remove('hidden');
+}
+
+function closeTeamModal() {
+  el('team-modal').classList.add('hidden');
+}
+
+function getKnownTeamMembers() {
+  const map = new Map();
+  state.collaborators.forEach(c => map.set(c.login, c));
+  state.issues.forEach(i => allAssignees(i).forEach(a => { if (!map.has(a.login)) map.set(a.login, a); }));
+  try {
+    JSON.parse(localStorage.getItem('gh_team_cache') || '[]').forEach(u => {
+      if (!map.has(u.login)) map.set(u.login, u);
+    });
+  } catch (_) {}
+  return Array.from(map.values()).sort((a, b) => a.login.localeCompare(b.login));
+}
+
+function cacheTeamMember(user) {
+  try {
+    const cached = JSON.parse(localStorage.getItem('gh_team_cache') || '[]');
+    if (!cached.find(m => m.login === user.login)) {
+      cached.push({ login: user.login, avatar_url: user.avatar_url, html_url: user.html_url });
+      localStorage.setItem('gh_team_cache', JSON.stringify(cached));
+    }
+  } catch (_) {}
+}
+
+function renderTeamList() {
+  const list = el('team-list');
+  const members = getKnownTeamMembers();
+  if (members.length === 0) {
+    list.innerHTML = '<p class="team-empty">No team members yet. Add someone below.</p>';
+    return;
+  }
+  list.innerHTML = '';
+  members.forEach(m => {
+    const row = document.createElement('div');
+    row.className = 'team-member';
+    const img = document.createElement('img');
+    img.className = 'avatar avatar-md'; img.src = avatarUrl(m, 64); img.alt = m.login; img.loading = 'lazy';
+    const name = document.createElement('span');
+    name.className = 'team-member-name'; name.textContent = m.login;
+    const link = document.createElement('a');
+    link.href = `https://github.com/${m.login}`; link.target = '_blank'; link.rel = 'noopener';
+    link.className = 'team-gh-link'; link.textContent = 'GitHub ↗';
+    row.appendChild(img); row.appendChild(name); row.appendChild(link);
+    list.appendChild(row);
+  });
+}
+
+async function addTeamMember(username) {
+  if (!username) return;
+  el('team-error').classList.add('hidden');
+  const btn = el('team-add-btn');
+  btn.disabled = true; btn.textContent = 'Adding…';
+
+  try {
+    // Verify the user exists
+    const userRes = await ghFetch(`users/${username}`);
+    if (!userRes.ok) throw new Error(`GitHub user “${username}” not found.`);
+    const user = await userRes.json();
+
+    // Try to add as collaborator (may need admin rights)
+    const invRes = await ghFetch(`repos/${state.owner}/${state.repo}/collaborators/${username}`,
+      state.token, { method: 'PUT', body: JSON.stringify({ permission: 'push' }) });
+
+    if (invRes.status === 201) {
+      toast(`${username} invited as collaborator`, 'success');
+    } else if (invRes.status === 204) {
+      toast(`${username} is already a collaborator`, 'success');
+    } else {
+      toast(`${username} added to team list (collaborator invite requires admin access)`, 'info');
+    }
+
+    cacheTeamMember(user);
+    if (!state.collaborators.find(c => c.login === user.login)) state.collaborators.push(user);
+
+    el('team-add-input').value = '';
+    renderTeamList();
+  } catch (err) {
+    showError('team-error', err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Add';
+  }
+}
+
+// ============================================================
+// Assignee Picker
+// ============================================================
+
+function toggleAssigneePicker() {
+  modal.pickerOpen ? closeAssigneePicker() : openAssigneePicker();
+}
+
+function openAssigneePicker() {
+  modal.pickerOpen = true;
+  const trigger = el('tm-ap-trigger');
+  const dropdown = el('tm-ap-dropdown');
+  trigger.classList.add('open');
+  trigger.setAttribute('aria-expanded', 'true');
+  dropdown.classList.remove('hidden');
+  el('tm-ap-search').value = '';
+  buildAssigneeList('');
+  setTimeout(() => el('tm-ap-search').focus(), 30);
+}
+
+function closeAssigneePicker() {
+  modal.pickerOpen = false;
+  el('tm-ap-trigger').classList.remove('open');
+  el('tm-ap-trigger').setAttribute('aria-expanded', 'false');
+  el('tm-ap-dropdown').classList.add('hidden');
+}
+
+function buildAssigneeList(filter) {
+  const list = el('tm-ap-list');
+  const members = getKnownTeamMembers();
+  const filtered = filter
+    ? members.filter(m => m.login.toLowerCase().includes(filter.toLowerCase()))
+    : members;
+
+  list.innerHTML = '';
+  if (filtered.length === 0) {
+    const li = document.createElement('li');
+    li.className = 'ap-empty';
+    li.textContent = members.length === 0
+      ? 'No team members yet — add some via the Team button.'
+      : 'No match found.';
+    list.appendChild(li); return;
+  }
+  filtered.forEach(member => {
+    const li = document.createElement('li');
+    const isSelected = modal.selectedAssignees.some(a => a.login === member.login);
+    if (isSelected) li.classList.add('selected');
+
+    const chk = document.createElement('span'); chk.className = 'ap-check'; chk.textContent = '✓';
+    const img = document.createElement('img');
+    img.className = 'avatar'; img.src = avatarUrl(member, 36); img.alt = member.login; img.loading = 'lazy';
+    const nm = document.createElement('span'); nm.textContent = member.login;
+
+    li.appendChild(chk); li.appendChild(img); li.appendChild(nm);
+    li.addEventListener('click', () => {
+      toggleAssignee(member);
+      buildAssigneeList(el('tm-ap-search').value);
+    });
+    list.appendChild(li);
+  });
+}
+
+function toggleAssignee(member) {
+  const idx = modal.selectedAssignees.findIndex(a => a.login === member.login);
+  if (idx >= 0) modal.selectedAssignees.splice(idx, 1);
+  else modal.selectedAssignees.push(member);
+  updateAssigneeDisplay();
+}
+
+function updateAssigneeDisplay() {
+  const chips = el('tm-ap-chips');
+  chips.innerHTML = '';
+  if (modal.selectedAssignees.length === 0) {
+    chips.innerHTML = '<span class="ap-placeholder">Unassigned — click to assign</span>';
+    return;
+  }
+  modal.selectedAssignees.forEach(a => {
+    const chip = document.createElement('span');
+    chip.className = 'ap-chip';
+    const img = document.createElement('img');
+    img.className = 'avatar'; img.src = avatarUrl(a, 36); img.alt = a.login;
+    const nm = document.createElement('span'); nm.textContent = a.login;
+    const x  = document.createElement('button');
+    x.type = 'button'; x.className = 'ap-chip-x'; x.textContent = '×';
+    x.addEventListener('click', e => { e.stopPropagation(); toggleAssignee(a); });
+    chip.appendChild(img); chip.appendChild(nm); chip.appendChild(x);
+    chips.appendChild(chip);
+  });
+}
+
+async function addManualAssignee() {
+  const input = el('tm-ap-manual');
+  const username = input.value.trim();
+  if (!username) return;
+  const btn = el('tm-ap-manual-btn');
+  btn.disabled = true;
+  try {
+    const res = await ghFetch(`users/${username}`);
+    if (!res.ok) throw new Error(`User “${username}” not found on GitHub.`);
+    const user = await res.json();
+    cacheTeamMember(user);
+    if (!state.collaborators.find(c => c.login === user.login)) state.collaborators.push(user);
+    if (!modal.selectedAssignees.find(a => a.login === user.login)) {
+      modal.selectedAssignees.push(user);
+      updateAssigneeDisplay();
+    }
+    input.value = '';
+    buildAssigneeList(el('tm-ap-search').value);
+  } catch (err) {
+    toast(err.message, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ============================================================
+// View Switching
+// ============================================================
 
 function switchView(view) {
   state.view = view;
-  document.querySelectorAll('.view-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.view === view);
-  });
-  document.getElementById('board-view').classList.toggle('hidden', view !== 'board');
-  document.getElementById('people-view').classList.toggle('hidden', view !== 'people');
+  document.querySelectorAll('.view-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.view === view));
+  el('board-view').classList.toggle('hidden', view !== 'board');
+  el('people-view').classList.toggle('hidden', view !== 'people');
 }
 
-// ---- New Issue ----
+// ============================================================
+// Utilities / Helpers
+// ============================================================
 
-function openNewIssue(stage = null) {
-  const base   = `https://github.com/${state.owner}/${state.repo}/issues/new`;
-  const params = new URLSearchParams();
-  if (stage) params.set('labels', stage);
-  const qs = params.toString();
-  window.open(qs ? `${base}?${qs}` : base, '_blank', 'noopener,noreferrer');
+function el(id) { return document.getElementById(id); }
+
+function allAssignees(issue) {
+  const out = [];
+  const seen = new Set();
+  const add = a => { if (a && !seen.has(a.login)) { seen.add(a.login); out.push(a); } };
+  (issue.assignees || []).forEach(add);
+  add(issue.assignee);
+  return out;
 }
 
-// ---- Helpers ----
-
-function getFirstAssignee(issue) {
-  if (issue.assignees && issue.assignees.length) return issue.assignees[0];
-  if (issue.assignee) return issue.assignee;
-  return null;
+function avatarUrl(user, size = 40) {
+  const base = user.avatar_url || `https://github.com/${user.login}.png`;
+  return `${base}&s=${size}`;
 }
 
 function parseDueDate(body) {
   if (!body) return null;
   const m = body.match(/[Dd]ue:\s*(\d{4}-\d{2}-\d{2})/);
   return m ? m[1] : null;
+}
+
+function parseBodyParts(body) {
+  if (!body) return { due: null, description: '' };
+  const m = body.match(/(?:^|\n)Due:\s*(\d{4}-\d{2}-\d{2})[ \t]*(?:\r?\n|$)/);
+  const due = m ? m[1] : null;
+  const description = body.replace(/(?:^|\n)Due:\s*\d{4}-\d{2}-\d{2}[ \t]*(?:\r?\n|$)/g, '\n').trim();
+  return { due, description };
+}
+
+function buildIssueBody(due, description) {
+  const parts = [];
+  if (due)         parts.push(`Due: ${due}`);
+  if (description) parts.push(description);
+  return parts.join('\n\n');
 }
 
 function isLightHex(hex) {
@@ -705,15 +1051,19 @@ function isLightHex(hex) {
   return (r * 299 + g * 587 + b * 114) / 1000 > 155;
 }
 
-function showLoading(on) {
-  document.getElementById('loading-overlay').classList.toggle('hidden', !on);
+function showLoading(on) { el('loading-overlay').classList.toggle('hidden', !on); }
+
+function showError(id, msg) {
+  const e = el(id);
+  e.textContent = msg;
+  e.classList.remove('hidden');
 }
 
 function toast(msg, type = 'info') {
-  const container = document.getElementById('toast-container');
-  const el = document.createElement('div');
-  el.className   = `toast${type !== 'info' ? ` ${type}` : ''}`;
-  el.textContent = msg;
-  container.appendChild(el);
-  setTimeout(() => el.remove(), 3800);
+  const wrap = el('toast-container');
+  const t = document.createElement('div');
+  t.className = `toast${type !== 'info' ? ` ${type}` : ''}`;
+  t.textContent = msg;
+  wrap.appendChild(t);
+  setTimeout(() => t.remove(), 4000);
 }
