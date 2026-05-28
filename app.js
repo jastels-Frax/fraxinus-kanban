@@ -924,14 +924,21 @@ async function saveProject() {
       state.token, { method: 'POST', body: JSON.stringify(payload) });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      // 403 = token lacks milestone write permission; 404/410 = milestones disabled or wrong repo
+      const detail = data.message || '';
       if (res.status === 403) {
-        throw new Error('Permission denied. Your Personal Access Token needs the full "repo" scope to create projects. Go to github.com/settings/tokens, regenerate your token with the "repo" checkbox ticked, then reconnect via Settings.');
+        // Fine-grained PATs lack milestone write; org SSO unapproved tokens also 403
+        if (detail.toLowerCase().includes('fine-grained') || detail.toLowerCase().includes('fine_grained')) {
+          throw new Error('Fine-grained tokens cannot create milestones. Please use a classic Personal Access Token with the "repo" scope instead.');
+        }
+        if (detail.toLowerCase().includes('organization') || detail.toLowerCase().includes('sso')) {
+          throw new Error(`Organization SSO error: ${detail}. You may need to authorize your token for the organization at github.com/settings/tokens.`);
+        }
+        throw new Error(`Permission denied (403): ${detail || 'Resource not accessible by personal access token'}. If using a fine-grained token, switch to a classic token with "repo" scope. If this is an organization repo, authorize the token for that org at github.com/settings/tokens.`);
       }
       if (res.status === 404 || res.status === 410) {
         throw new Error('Milestones could not be created. Make sure your PAT has the full "repo" scope (not just "public_repo"), and that Issues are enabled on this repository.');
       }
-      throw new Error(data.message || `HTTP ${res.status}`);
+      throw new Error(detail || `HTTP ${res.status}`);
     }
     const ms = await res.json();
     state.milestones.unshift(ms);
