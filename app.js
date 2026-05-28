@@ -446,7 +446,8 @@ function populateFilterSelects() {
   msEl.innerHTML = '<option value="">All Projects</option>';
   state.milestones.forEach(m => {
     const o = document.createElement('option');
-    o.value = o.textContent = m.title;
+    o.value = m.title;
+    o.textContent = projectLabel(m);
     msEl.appendChild(o);
   });
   msEl.value = curMs;
@@ -579,7 +580,9 @@ function buildCard(issue) {
   if (issue.milestone) {
     const proj = document.createElement('div');
     proj.className = 'card-project';
-    proj.textContent = `\u{1F4CB} ${issue.milestone.title}`;
+    const ms = state.milestones.find(m => m.number === issue.milestone.number);
+    const { client } = parseProjectClient(ms ? (ms.description || '') : '');
+    proj.textContent = `\u{1F4CB} ${issue.milestone.title}${client ? ` — ${client}` : ''}`;
     meta.appendChild(proj);
   }
 
@@ -802,7 +805,7 @@ function refreshProjectOptions(selectValue = null) {
   const ms = el('tm-milestone');
   const current = selectValue !== null ? selectValue : ms.value;
   ms.innerHTML = '<option value="">No project</option>' +
-    state.milestones.map(m => `<option value="${m.number}">${m.title}</option>`).join('');
+    state.milestones.map(m => `<option value="${m.number}">${projectLabel(m)}</option>`).join('');
   if (current) ms.value = current;
 }
 
@@ -913,10 +916,22 @@ async function handleCloseIssue() {
 // ============================================================
 
 function openProjectModal() {
-  el('pm-name').value = ''; el('pm-desc').value = ''; el('pm-due').value = '';
+  el('pm-name').value = ''; el('pm-client').value = ''; el('pm-desc').value = ''; el('pm-due').value = '';
   el('pm-error').classList.add('hidden');
   el('project-modal').classList.remove('hidden');
   setTimeout(() => el('pm-name').focus(), 50);
+}
+
+function parseProjectClient(description) {
+  if (!description) return { client: '', description: '' };
+  const match = description.match(/^Client:\s*(.+)\n*/);
+  if (!match) return { client: '', description: description.trim() };
+  return { client: match[1].trim(), description: description.slice(match[0].length).trim() };
+}
+
+function projectLabel(m) {
+  const { client } = parseProjectClient(m.description || '');
+  return client ? `${m.title} — ${client}` : m.title;
 }
 
 function closeProjectModal() { el('project-modal').classList.add('hidden'); }
@@ -931,9 +946,11 @@ async function saveProject() {
 
   try {
     const payload = { title: name };
-    const desc = el('pm-desc').value.trim();
-    const due  = el('pm-due').value;
-    if (desc) payload.description = desc;
+    const client = el('pm-client').value.trim();
+    const desc   = el('pm-desc').value.trim();
+    const due    = el('pm-due').value;
+    const fullDesc = [client ? `Client: ${client}` : '', desc].filter(Boolean).join('\n\n');
+    if (fullDesc) payload.description = fullDesc;
     if (due)  payload.due_on = `${due}T00:00:00Z`;
 
     const res = await ghFetch(`repos/${state.owner}/${state.repo}/milestones`,
