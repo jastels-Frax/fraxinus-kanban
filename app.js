@@ -411,7 +411,7 @@ function allIssueAssignees(issue) {
 
 function parseLocalAssigneeNames(body) {
   if (!body) return [];
-  return [...(body.matchAll(/^Local-Assignee:\s*(.+?)[ \t]*$/mg))].map(m => m[1].trim());
+  return [...(body.matchAll(/^Local-Assignee:\s*(.+)[ \t]*$/mg))].map(m => m[1].trim());
 }
 
 // ============================================================
@@ -494,8 +494,9 @@ function applyFilters(issues) {
         const login = assignee.slice(7);
         if (!new Set(githubAssigneesOf(issue).map(a => a.login)).has(login)) return false;
       } else if (assignee.startsWith('local:')) {
-        const name = assignee.slice(6);
-        if (!parseLocalAssigneeNames(issue.body).includes(name)) return false;
+        const id = assignee.slice(6);
+        const member = getLocalTeam().find(m => m.id === id);
+        if (!member || !parseLocalAssigneeNames(issue.body).includes(member.name)) return false;
       }
     }
     const lns = issue.labels.map(l => l.name);
