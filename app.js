@@ -1982,11 +1982,10 @@ function buildProjectCard(ms, issues) {
   showTasksBtn.addEventListener('click', e => { e.stopPropagation(); filterProjectToBoard(ms); });
   hdrTop.appendChild(nameEl); hdrTop.appendChild(showTasksBtn);
   hdr.appendChild(hdrTop);
-  if (client) {
-    const clientEl = document.createElement('div'); clientEl.className = 'project-client';
-    clientEl.textContent = client;
-    hdr.appendChild(clientEl);
-  }
+  const clientEl = document.createElement('div');
+  clientEl.className = client ? 'project-client' : 'project-client project-client-none';
+  clientEl.textContent = client || 'No client assigned';
+  hdr.appendChild(clientEl);
   const metaEl = document.createElement('div'); metaEl.className = 'project-meta';
   const cntEl = document.createElement('span'); cntEl.className = 'project-count';
   cntEl.textContent = `${issues.length} open task${issues.length !== 1 ? 's' : ''}`;
@@ -1999,14 +1998,23 @@ function buildProjectCard(ms, issues) {
   hdr.appendChild(metaEl);
   card.appendChild(hdr);
 
-  // Description — single line, truncated
-  if (description) {
-    const descEl = document.createElement('div'); descEl.className = 'project-desc-line';
-    descEl.textContent = description;
-    card.appendChild(descEl);
-  }
+  // Description — always rendered (blank space if empty)
+  const descEl = document.createElement('div'); descEl.className = 'project-desc-line';
+  descEl.textContent = description || '';
+  card.appendChild(descEl);
 
-  // Stage dot-strip — horizontal colored dots with counts, no stage names
+  // Location — always rendered (blank space if empty)
+  const locEl = document.createElement('div'); locEl.className = 'project-location-teaser';
+  if (gps || town || county || province) {
+    const parts = [];
+    if (gps) parts.push(gps);
+    const place = [town, county, province].filter(Boolean).join(', ');
+    if (place) parts.push(place);
+    locEl.textContent = '📍 ' + parts.join(' · ');
+  }
+  card.appendChild(locEl);
+
+  // Stage dot-strip — always rendered, pins to bottom via flex
   const strip = document.createElement('div'); strip.className = 'project-stage-strip';
   STAGE_LABELS.forEach(stage => {
     const n = issues.filter(i => i.labels.some(l => l.name === stage)).length;
@@ -2016,7 +2024,7 @@ function buildProjectCard(ms, issues) {
     const cnt = document.createElement('span'); cnt.textContent = n;
     pip.appendChild(dot); pip.appendChild(cnt); strip.appendChild(pip);
   });
-  if (strip.children.length) card.appendChild(strip);
+  card.appendChild(strip);
 
   card.addEventListener('click', () => openProjectView(ms, issues));
   card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openProjectView(ms, issues); } });
