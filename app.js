@@ -1972,9 +1972,8 @@ function buildProjectCard(ms, issues) {
   card.className = 'project-card'; card.setAttribute('tabindex', '0');
   card.title = `View details for ${ms.title}`;
 
-  // Header
+  // Header (green bg)
   const hdr = document.createElement('div'); hdr.className = 'project-header';
-
   const hdrTop = document.createElement('div'); hdrTop.className = 'project-header-top';
   const nameEl = document.createElement('div'); nameEl.className = 'project-name';
   nameEl.textContent = ms.title;
@@ -1983,13 +1982,11 @@ function buildProjectCard(ms, issues) {
   showTasksBtn.addEventListener('click', e => { e.stopPropagation(); filterProjectToBoard(ms); });
   hdrTop.appendChild(nameEl); hdrTop.appendChild(showTasksBtn);
   hdr.appendChild(hdrTop);
-
   if (client) {
     const clientEl = document.createElement('div'); clientEl.className = 'project-client';
     clientEl.textContent = client;
     hdr.appendChild(clientEl);
   }
-
   const metaEl = document.createElement('div'); metaEl.className = 'project-meta';
   const cntEl = document.createElement('span'); cntEl.className = 'project-count';
   cntEl.textContent = `${issues.length} open task${issues.length !== 1 ? 's' : ''}`;
@@ -2002,78 +1999,64 @@ function buildProjectCard(ms, issues) {
   hdr.appendChild(metaEl);
   card.appendChild(hdr);
 
+  // Description — single line, truncated
   if (description) {
-    const descEl = document.createElement('div'); descEl.className = 'project-desc';
+    const descEl = document.createElement('div'); descEl.className = 'project-desc-line';
     descEl.textContent = description;
     card.appendChild(descEl);
   }
 
-  // Client contact info (show only filled fields)
+  // Contact teaser — one compact row: 👤 name  ✉ email  📞 phone
   if (contact || email || phone) {
-    const sec = document.createElement('div'); sec.className = 'project-info-section';
-    const lbl = document.createElement('div'); lbl.className = 'project-info-label';
-    lbl.textContent = 'Contact';
-    sec.appendChild(lbl);
+    const teaser = document.createElement('div'); teaser.className = 'project-contact-teaser';
     if (contact) {
-      const row = document.createElement('div'); row.className = 'project-info-row';
-      const icon = document.createElement('span'); icon.className = 'project-info-icon'; icon.textContent = '👤';
-      const txt = document.createElement('span'); txt.textContent = contact;
-      row.appendChild(icon); row.appendChild(txt); sec.appendChild(row);
+      const item = document.createElement('span'); item.className = 'tease-item';
+      const icon = document.createElement('span'); icon.className = 'tease-icon'; icon.textContent = '👤';
+      const val = document.createElement('span'); val.className = 'tease-val'; val.textContent = contact;
+      item.appendChild(icon); item.appendChild(val); teaser.appendChild(item);
     }
     if (email) {
-      const row = document.createElement('div'); row.className = 'project-info-row';
-      const icon = document.createElement('span'); icon.className = 'project-info-icon'; icon.textContent = '✉';
+      const item = document.createElement('span'); item.className = 'tease-item tease-item-email';
+      const icon = document.createElement('span'); icon.className = 'tease-icon'; icon.textContent = '✉';
       const a = document.createElement('a'); a.href = `mailto:${email}`; a.textContent = email; a.title = email;
+      a.className = 'tease-val';
       a.addEventListener('click', e => e.stopPropagation());
-      row.appendChild(icon); row.appendChild(a); sec.appendChild(row);
+      item.appendChild(icon); item.appendChild(a); teaser.appendChild(item);
     }
     if (phone) {
-      const row = document.createElement('div'); row.className = 'project-info-row';
-      const icon = document.createElement('span'); icon.className = 'project-info-icon'; icon.textContent = '📞';
+      const item = document.createElement('span'); item.className = 'tease-item';
+      const icon = document.createElement('span'); icon.className = 'tease-icon'; icon.textContent = '📞';
       const a = document.createElement('a'); a.href = `tel:${phone.replace(/\s/g, '')}`; a.textContent = phone; a.title = phone;
+      a.className = 'tease-val';
       a.addEventListener('click', e => e.stopPropagation());
-      row.appendChild(icon); row.appendChild(a); sec.appendChild(row);
+      item.appendChild(icon); item.appendChild(a); teaser.appendChild(item);
     }
-    card.appendChild(sec);
+    card.appendChild(teaser);
   }
 
-  // Location info (show only filled fields)
+  // Location teaser — one compact line: 📍 GPS · Town, County, Province
   if (gps || town || county || province) {
-    const sec = document.createElement('div'); sec.className = 'project-info-section';
-    const lbl = document.createElement('div'); lbl.className = 'project-info-label';
-    lbl.textContent = '📍 Location';
-    sec.appendChild(lbl);
-    if (gps) {
-      const row = document.createElement('div'); row.className = 'project-info-row';
-      const icon = document.createElement('span'); icon.className = 'project-info-icon'; icon.textContent = '';
-      const txt = document.createElement('span'); txt.textContent = `GPS: ${gps}`;
-      row.appendChild(icon); row.appendChild(txt); sec.appendChild(row);
-    }
+    const parts = [];
+    if (gps) parts.push(gps);
     const place = [town, county, province].filter(Boolean).join(', ');
-    if (place) {
-      const row = document.createElement('div'); row.className = 'project-info-row';
-      const icon = document.createElement('span'); icon.className = 'project-info-icon'; icon.textContent = '';
-      const txt = document.createElement('span'); txt.textContent = place;
-      row.appendChild(icon); row.appendChild(txt); sec.appendChild(row);
-    }
-    card.appendChild(sec);
+    if (place) parts.push(place);
+    const locEl = document.createElement('div'); locEl.className = 'project-location-teaser';
+    locEl.textContent = '📍 ' + parts.join(' · ');
+    card.appendChild(locEl);
   }
 
-  // Stage breakdown
-  const stages = document.createElement('div'); stages.className = 'project-stages';
+  // Stage dot-strip — horizontal colored dots with counts, no stage names
+  const strip = document.createElement('div'); strip.className = 'project-stage-strip';
   STAGE_LABELS.forEach(stage => {
     const n = issues.filter(i => i.labels.some(l => l.name === stage)).length;
     if (!n) return;
-    const row = document.createElement('div'); row.className = 'person-stage-row';
+    const pip = document.createElement('span'); pip.className = 'project-stage-pip';
     const dot = document.createElement('span'); dot.className = 'stage-dot'; dot.style.background = STAGE_COLORS[stage];
-    const nm  = document.createElement('span'); nm.className = 'stage-name'; nm.textContent = stage;
-    const cnt = document.createElement('span'); cnt.className = 'stage-count'; cnt.textContent = n;
-    row.appendChild(dot); row.appendChild(nm); row.appendChild(cnt);
-    stages.appendChild(row);
+    const cnt = document.createElement('span'); cnt.textContent = n;
+    pip.appendChild(dot); pip.appendChild(cnt); strip.appendChild(pip);
   });
-  if (stages.children.length) card.appendChild(stages);
+  if (strip.children.length) card.appendChild(strip);
 
-  // Click → open project view modal
   card.addEventListener('click', () => openProjectView(ms, issues));
   card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openProjectView(ms, issues); } });
   return card;
