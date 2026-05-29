@@ -287,6 +287,49 @@
   </div>
 </div>
 
+<!-- ===================== PROJECT VIEW MODAL ===================== -->
+<div id="project-view-modal" class="modal-overlay modal-stacked hidden">
+  <div class="modal modal-wide">
+    <div class="modal-topbar">
+      <div class="modal-topbar-left">
+        <span id="pv-heading" class="modal-topbar-left"></span>
+      </div>
+      <button class="modal-x" id="pv-x" aria-label="Close">&#x2715;</button>
+    </div>
+    <div class="modal-content pv-content">
+      <h2 id="pv-title" class="tv-title"></h2>
+      <div id="pv-meta-row" class="tv-chips"></div>
+
+      <div id="pv-description-section" class="tv-section hidden">
+        <div class="tv-section-label">Description</div>
+        <div id="pv-description-body" class="tv-section-body"></div>
+      </div>
+
+      <div id="pv-client-section" class="tv-section hidden">
+        <div class="tv-section-label">Client</div>
+        <div id="pv-client-body" class="tv-project-body"></div>
+      </div>
+
+      <div id="pv-location-section" class="tv-section hidden">
+        <div class="tv-section-label">&#128205; Location</div>
+        <div id="pv-location-body" class="tv-section-body"></div>
+      </div>
+
+      <div id="pv-tasks-section" class="tv-section hidden">
+        <div class="tv-section-label">Tasks by Stage</div>
+        <div id="pv-tasks-body" class="project-stages pv-stages-body"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="pv-close">Close</button>
+        <button type="button" class="btn btn-secondary" id="pv-show-tasks">&#128195; Show Tasks</button>
+        <button type="button" class="btn btn-primary" id="pv-edit">&#9998; Edit Project</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ===================== PROJECT MODAL (create milestone) ===================== -->
 <div id="project-modal" class="modal-overlay modal-stacked hidden">
   <div class="modal">

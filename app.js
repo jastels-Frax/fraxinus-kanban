@@ -82,6 +82,7 @@ const modal = {
   pickerOpen:        false,
   completingIssue:   null,
   viewingIssue:      null,
+  viewingProject:    null,
 };
 
 let pendingAvatar = null; // base64 data URL staged for new team member
@@ -156,6 +157,21 @@ function bindUIEvents() {
     openCompletionModal(issue);
   });
   addBackdropClose('task-view-modal', closeTaskView);
+
+  // Project view modal
+  el('pv-x').addEventListener('click', closeProjectView);
+  el('pv-close').addEventListener('click', closeProjectView);
+  el('pv-edit').addEventListener('click', () => {
+    const ms = modal.viewingProject;
+    closeProjectView();
+    openProjectModal(ms);
+  });
+  el('pv-show-tasks').addEventListener('click', () => {
+    const ms = modal.viewingProject;
+    closeProjectView();
+    filterProjectToBoard(ms);
+  });
+  addBackdropClose('project-view-modal', closeProjectView);
 
   // Task modal
   el('tm-x').addEventListener('click', closeTaskModal);
@@ -1880,11 +1896,11 @@ function renderProjects() {
 }
 
 function buildProjectCard(ms, issues) {
-  const { client, contact, email, phone, gps, town, county, province, description } = parseProjectMeta(ms.description || '');
+  const { client, description } = parseProjectMeta(ms.description || '');
 
   const card = document.createElement('div');
   card.className = 'project-card'; card.setAttribute('tabindex', '0');
-  card.title = `Filter board to ${ms.title}`;
+  card.title = `View details for ${ms.title}`;
 
   // Header
   const hdr = document.createElement('div'); hdr.className = 'project-header';
@@ -1892,10 +1908,10 @@ function buildProjectCard(ms, issues) {
   const hdrTop = document.createElement('div'); hdrTop.className = 'project-header-top';
   const nameEl = document.createElement('div'); nameEl.className = 'project-name';
   nameEl.textContent = ms.title;
-  const editBtn = document.createElement('button');
-  editBtn.className = 'project-edit-btn'; editBtn.textContent = 'Edit';
-  editBtn.addEventListener('click', e => { e.stopPropagation(); openProjectModal(ms); });
-  hdrTop.appendChild(nameEl); hdrTop.appendChild(editBtn);
+  const showTasksBtn = document.createElement('button');
+  showTasksBtn.className = 'project-edit-btn'; showTasksBtn.textContent = 'Show Tasks';
+  showTasksBtn.addEventListener('click', e => { e.stopPropagation(); filterProjectToBoard(ms); });
+  hdrTop.appendChild(nameEl); hdrTop.appendChild(showTasksBtn);
   hdr.appendChild(hdrTop);
 
   if (client) {
@@ -1916,60 +1932,10 @@ function buildProjectCard(ms, issues) {
   hdr.appendChild(metaEl);
   card.appendChild(hdr);
 
-  // Description
   if (description) {
     const descEl = document.createElement('div'); descEl.className = 'project-desc';
     descEl.textContent = description;
     card.appendChild(descEl);
-  }
-
-  // Client contact info (show only filled fields)
-  if (contact || email || phone) {
-    const sec = document.createElement('div'); sec.className = 'project-info-section';
-    const lbl = document.createElement('div'); lbl.className = 'project-info-label';
-    lbl.textContent = 'Contact';
-    sec.appendChild(lbl);
-    if (contact) {
-      const row = document.createElement('div'); row.className = 'project-info-row';
-      const icon = document.createElement('span'); icon.className = 'project-info-icon'; icon.textContent = '👤';
-      const txt = document.createElement('span'); txt.textContent = contact;
-      row.appendChild(icon); row.appendChild(txt); sec.appendChild(row);
-    }
-    if (email) {
-      const row = document.createElement('div'); row.className = 'project-info-row';
-      const icon = document.createElement('span'); icon.className = 'project-info-icon'; icon.textContent = '✉';
-      const a = document.createElement('a'); a.href = `mailto:${email}`; a.textContent = email; a.title = email;
-      a.addEventListener('click', e => e.stopPropagation());
-      row.appendChild(icon); row.appendChild(a); sec.appendChild(row);
-    }
-    if (phone) {
-      const row = document.createElement('div'); row.className = 'project-info-row';
-      const icon = document.createElement('span'); icon.className = 'project-info-icon'; icon.textContent = '📞';
-      const a = document.createElement('a'); a.href = `tel:${phone.replace(/\s/g, '')}`; a.textContent = phone; a.title = phone;
-      a.addEventListener('click', e => e.stopPropagation());
-      row.appendChild(icon); row.appendChild(a); sec.appendChild(row);
-    }
-    card.appendChild(sec);
-  }
-
-  // Location info (show only filled fields)
-  if (gps || town || county || province) {
-    const sec = document.createElement('div'); sec.className = 'project-info-section';
-    const lbl = document.createElement('div'); lbl.className = 'project-info-label';
-    lbl.textContent = '📍 Location';
-    sec.appendChild(lbl);
-    if (gps) {
-      const row = document.createElement('div'); row.className = 'project-info-row';
-      row.textContent = `GPS: ${gps}`;
-      sec.appendChild(row);
-    }
-    const place = [town, county, province].filter(Boolean).join(', ');
-    if (place) {
-      const row = document.createElement('div'); row.className = 'project-info-row';
-      row.textContent = place;
-      sec.appendChild(row);
-    }
-    card.appendChild(sec);
   }
 
   // Stage breakdown
@@ -1986,16 +1952,122 @@ function buildProjectCard(ms, issues) {
   });
   if (stages.children.length) card.appendChild(stages);
 
-  // Click → filter board to this project
-  const filterTo = () => {
-    el('milestone-filter').value = ms.title;
-    state.filters.milestone = ms.title;
-    el('filter-badge').classList.remove('hidden');
-    switchView('board'); renderBoard();
-  };
-  card.addEventListener('click', filterTo);
-  card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); filterTo(); } });
+  // Click → open project view modal
+  card.addEventListener('click', () => openProjectView(ms, issues));
+  card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openProjectView(ms, issues); } });
   return card;
+}
+
+function filterProjectToBoard(ms) {
+  el('milestone-filter').value = ms.title;
+  state.filters.milestone = ms.title;
+  el('filter-badge').classList.remove('hidden');
+  switchView('board'); renderBoard();
+}
+
+function openProjectView(ms, issues) {
+  const { client, contact, email, phone, gps, town, county, province, description } = parseProjectMeta(ms.description || '');
+  modal.viewingProject = ms;
+
+  el('pv-title').textContent = ms.title;
+
+  // Meta chips (task count + due date)
+  const metaRow = el('pv-meta-row');
+  metaRow.innerHTML = '';
+  const cntChip = document.createElement('span'); cntChip.className = 'tv-chip';
+  cntChip.textContent = `${issues.length} open task${issues.length !== 1 ? 's' : ''}`;
+  metaRow.appendChild(cntChip);
+  if (ms.due_on) {
+    const dueChip = document.createElement('span'); dueChip.className = 'tv-chip';
+    dueChip.textContent = `Due ${ms.due_on.slice(0, 10)}`;
+    metaRow.appendChild(dueChip);
+  }
+
+  // Description
+  const descSec = el('pv-description-section');
+  if (description) {
+    el('pv-description-body').textContent = description;
+    descSec.classList.remove('hidden');
+  } else {
+    descSec.classList.add('hidden');
+  }
+
+  // Client
+  const clientSec = el('pv-client-section');
+  const clientBody = el('pv-client-body');
+  clientBody.innerHTML = '';
+  if (client || contact || email || phone) {
+    if (client) {
+      const companyRow = document.createElement('div'); companyRow.className = 'tv-project-name';
+      companyRow.textContent = client;
+      clientBody.appendChild(companyRow);
+    }
+    if (contact) {
+      const row = document.createElement('div'); row.className = 'project-info-row';
+      const icon = document.createElement('span'); icon.className = 'project-info-icon'; icon.textContent = '👤';
+      const txt = document.createElement('span'); txt.textContent = contact;
+      row.appendChild(icon); row.appendChild(txt); clientBody.appendChild(row);
+    }
+    if (email) {
+      const row = document.createElement('div'); row.className = 'project-info-row';
+      const icon = document.createElement('span'); icon.className = 'project-info-icon'; icon.textContent = '✉';
+      const a = document.createElement('a'); a.href = `mailto:${email}`; a.textContent = email;
+      row.appendChild(icon); row.appendChild(a); clientBody.appendChild(row);
+    }
+    if (phone) {
+      const row = document.createElement('div'); row.className = 'project-info-row';
+      const icon = document.createElement('span'); icon.className = 'project-info-icon'; icon.textContent = '📞';
+      const a = document.createElement('a'); a.href = `tel:${phone.replace(/\s/g, '')}`; a.textContent = phone;
+      row.appendChild(icon); row.appendChild(a); clientBody.appendChild(row);
+    }
+    clientSec.classList.remove('hidden');
+  } else {
+    clientSec.classList.add('hidden');
+  }
+
+  // Location
+  const locSec = el('pv-location-section');
+  const locBody = el('pv-location-body');
+  locBody.innerHTML = '';
+  if (gps || town || county || province) {
+    if (gps) {
+      const row = document.createElement('div');
+      row.textContent = `GPS: ${gps}`;
+      locBody.appendChild(row);
+    }
+    const place = [town, county, province].filter(Boolean).join(', ');
+    if (place) {
+      const row = document.createElement('div');
+      row.textContent = place;
+      locBody.appendChild(row);
+    }
+    locSec.classList.remove('hidden');
+  } else {
+    locSec.classList.add('hidden');
+  }
+
+  // Stage breakdown
+  const tasksSec = el('pv-tasks-section');
+  const tasksBody = el('pv-tasks-body');
+  tasksBody.innerHTML = '';
+  STAGE_LABELS.forEach(stage => {
+    const n = issues.filter(i => i.labels.some(l => l.name === stage)).length;
+    if (!n) return;
+    const row = document.createElement('div'); row.className = 'person-stage-row';
+    const dot = document.createElement('span'); dot.className = 'stage-dot'; dot.style.background = STAGE_COLORS[stage];
+    const nm  = document.createElement('span'); nm.className = 'stage-name'; nm.textContent = stage;
+    const cnt = document.createElement('span'); cnt.className = 'stage-count'; cnt.textContent = n;
+    row.appendChild(dot); row.appendChild(nm); row.appendChild(cnt);
+    tasksBody.appendChild(row);
+  });
+  tasksSec.classList.toggle('hidden', !tasksBody.children.length);
+
+  el('project-view-modal').classList.remove('hidden');
+}
+
+function closeProjectView() {
+  el('project-view-modal').classList.add('hidden');
+  modal.viewingProject = null;
 }
 
 // ============================================================
