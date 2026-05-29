@@ -682,8 +682,8 @@ function buildCard(issue) {
 
   const taskType = issue.labels.find(l => TASK_TYPE_LABELS.includes(l.name));
   const due = parseDueDate(issue.body);
-  const { effort } = parseBodyParts(issue.body);
-  if (taskType || due || priority || effort) {
+  const { effort, completionNotes } = parseBodyParts(issue.body);
+  if (taskType || due || priority || effort || completionNotes) {
     const footer = document.createElement('div'); footer.className = 'card-footer';
     if (taskType) {
       const chip = document.createElement('span');
@@ -705,6 +705,13 @@ function buildCard(issue) {
       efEl.className = 'effort-chip';
       efEl.textContent = `⏱ ${effort}`;
       footer.appendChild(efEl);
+    }
+    if (completionNotes) {
+      const cnEl = document.createElement('span');
+      cnEl.className = 'completion-notes-chip';
+      cnEl.title = completionNotes;
+      cnEl.textContent = '📋 Completion notes';
+      footer.appendChild(cnEl);
     }
     if (due) {
       const dueEl = document.createElement('span'); dueEl.className = 'due-date';
@@ -832,9 +839,11 @@ async function moveIssueToStage(issue, newStage, completionNotes = undefined) {
 function openCompletionModal(issue) {
   modal.completingIssue = issue;
   el('cn-task-title').textContent = issue.title;
-  el('cn-notes').value = '';
+  const { completionNotes } = parseBodyParts(issue.body);
+  el('cn-notes').value = completionNotes || '';
   el('completion-modal').classList.remove('hidden');
-  setTimeout(() => el('cn-notes').focus(), 50);
+  const textarea = el('cn-notes');
+  setTimeout(() => { textarea.focus(); textarea.setSelectionRange(textarea.value.length, textarea.value.length); }, 50);
 }
 
 function closeCompletionModal() {
@@ -931,7 +940,8 @@ function openTaskModal(issue = null, defaultStage = null) {
 
 function syncCompletionNotesVisibility() {
   const isDelivered = el('tm-stage').value === 'Delivered / Closed';
-  el('tm-completion-notes-group').classList.toggle('hidden', !isDelivered);
+  const hasNotes    = el('tm-completion-notes').value.trim().length > 0;
+  el('tm-completion-notes-group').classList.toggle('hidden', !isDelivered && !hasNotes);
   const completeBtn = el('tm-mark-complete');
   if (completeBtn) completeBtn.classList.toggle('hidden', isDelivered || !modal.editingIssue);
 }

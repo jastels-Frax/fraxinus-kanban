@@ -324,6 +324,13 @@ a { color: var(--green-dark); }
 .due-date.overdue { color: var(--red); font-weight: 700; }
 .due-date.soon    { color: var(--yellow); font-weight: 600; }
 .effort-chip { font-size: 10px; color: var(--gray-500); white-space: nowrap; }
+.completion-notes-chip {
+  font-size: 10px;
+  color: var(--green-dark);
+  white-space: nowrap;
+  font-style: italic;
+  cursor: default;
+}
 
 .card-complete-btn {
   position: absolute;
