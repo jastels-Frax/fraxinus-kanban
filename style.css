@@ -706,6 +706,7 @@ a { color: var(--green-dark); }
   overflow-y: auto;
 }
 .modal-stacked { z-index: 1100; background: rgba(0,0,0,0.35); }
+.modal-stacked-top { z-index: 1200; background: rgba(0,0,0,0.35); }
 
 .modal {
   background: #fff;
