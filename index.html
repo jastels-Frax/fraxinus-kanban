@@ -191,6 +191,7 @@
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" id="tm-cancel">Cancel</button>
         <button type="button" class="btn btn-danger hidden" id="tm-close-issue">Delete Task</button>
+        <button type="button" class="btn btn-success hidden" id="tm-mark-complete">&#10003; Mark as Complete</button>
         <button type="button" class="btn btn-primary" id="tm-save">Create Task</button>
       </div>
     </div>
@@ -222,7 +223,7 @@
 
 <!-- ===================== PROJECT MODAL (create milestone) ===================== -->
 <div id="project-modal" class="modal-overlay modal-stacked hidden">
-  <div class="modal modal-sm">
+  <div class="modal">
     <div class="modal-topbar">
       <span class="modal-topbar-left" id="pm-heading">New Project</span>
       <button class="modal-x" id="pm-x" aria-label="Close">&#x2715;</button>
@@ -232,18 +233,59 @@
         <label class="field-label" for="pm-name">Project Name <span class="req">*</span></label>
         <input class="field-input" type="text" id="pm-name" placeholder="e.g. Hope Brook Rare Plant Survey" />
       </div>
-      <div class="field-group">
-        <label class="field-label" for="pm-client">Client</label>
-        <input class="field-input" type="text" id="pm-client" placeholder="e.g. Shelburne Properties" />
+      <div class="field-row">
+        <div class="field-group">
+          <label class="field-label" for="pm-desc">Description</label>
+          <input class="field-input" type="text" id="pm-desc" placeholder="Optional description" />
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="pm-due">Target Completion Date</label>
+          <input class="field-input" type="date" id="pm-due" />
+        </div>
       </div>
-      <div class="field-group">
-        <label class="field-label" for="pm-desc">Description</label>
-        <input class="field-input" type="text" id="pm-desc" placeholder="Optional description" />
+
+      <div class="pm-section-label">Client</div>
+      <div class="field-row">
+        <div class="field-group">
+          <label class="field-label" for="pm-client">Company / Organization</label>
+          <input class="field-input" type="text" id="pm-client" placeholder="e.g. Shelburne Properties" />
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="pm-contact">Primary Contact Name</label>
+          <input class="field-input" type="text" id="pm-contact" placeholder="e.g. Jane Smith" />
+        </div>
       </div>
-      <div class="field-group">
-        <label class="field-label" for="pm-due">Target Completion Date</label>
-        <input class="field-input" type="date" id="pm-due" />
+      <div class="field-row">
+        <div class="field-group">
+          <label class="field-label" for="pm-email">Email</label>
+          <input class="field-input" type="email" id="pm-email" placeholder="e.g. jane@example.com" />
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="pm-phone">Phone</label>
+          <input class="field-input" type="tel" id="pm-phone" placeholder="e.g. 902-555-1234" />
+        </div>
       </div>
+
+      <div class="pm-section-label">Location</div>
+      <div class="field-group">
+        <label class="field-label" for="pm-gps">GPS Coordinates</label>
+        <input class="field-input" type="text" id="pm-gps" placeholder="e.g. 44.1234, -63.5678" />
+      </div>
+      <div class="field-row">
+        <div class="field-group">
+          <label class="field-label" for="pm-town">Town</label>
+          <input class="field-input" type="text" id="pm-town" placeholder="e.g. Shelburne" />
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="pm-county">County</label>
+          <input class="field-input" type="text" id="pm-county" placeholder="e.g. Shelburne County" />
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="pm-province">Province</label>
+          <input class="field-input" type="text" id="pm-province" placeholder="e.g. Nova Scotia" />
+        </div>
+      </div>
+
       <div id="pm-error" class="error-msg hidden"></div>
     </div>
     <div class="modal-footer">

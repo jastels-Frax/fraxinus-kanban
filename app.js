@@ -145,6 +145,9 @@ function bindUIEvents() {
   el('tm-cancel').addEventListener('click', closeTaskModal);
   el('tm-save').addEventListener('click', saveTask);
   el('tm-close-issue').addEventListener('click', handleCloseIssue);
+  el('tm-mark-complete').addEventListener('click', () => {
+    if (modal.editingIssue) openCompletionModal(modal.editingIssue);
+  });
   el('tm-new-project-btn').addEventListener('click', () => openProjectModal());
   el('tm-stage').addEventListener('change', syncCompletionNotesVisibility);
   addBackdropClose('task-modal', closeTaskModal);
@@ -657,7 +660,7 @@ function buildCard(issue) {
     const proj = document.createElement('div');
     proj.className = 'card-project';
     const ms = state.milestones.find(m => m.number === issue.milestone.number);
-    const { client } = parseProjectClient(ms ? (ms.description || '') : '');
+    const { client } = parseProjectMeta(ms ? (ms.description || '') : '');
     proj.textContent = `\u{1F4CB} ${issue.milestone.title}${client ? ` — ${client}` : ''}`;
     meta.appendChild(proj);
   }
@@ -844,6 +847,7 @@ async function confirmCompletion() {
   if (!issue) return;
   const notes = el('cn-notes').value.trim();
   closeCompletionModal();
+  closeTaskModal();
   await moveIssueToStage(issue, 'Delivered / Closed', notes || null);
 }
 
@@ -928,6 +932,8 @@ function openTaskModal(issue = null, defaultStage = null) {
 function syncCompletionNotesVisibility() {
   const isDelivered = el('tm-stage').value === 'Delivered / Closed';
   el('tm-completion-notes-group').classList.toggle('hidden', !isDelivered);
+  const completeBtn = el('tm-mark-complete');
+  if (completeBtn) completeBtn.classList.toggle('hidden', isDelivered || !modal.editingIssue);
 }
 
 function closeTaskModal() {
@@ -1057,27 +1063,60 @@ function handleCloseIssue() {
 
 function openProjectModal(ms = null) {
   modal.editingProject = ms;
-  const { client, description } = parseProjectClient(ms ? (ms.description || '') : '');
+  const meta = parseProjectMeta(ms ? (ms.description || '') : '');
   el('pm-heading').textContent = ms ? 'Edit Project' : 'New Project';
   el('pm-save').textContent    = ms ? 'Save Changes' : 'Create Project';
-  el('pm-name').value   = ms ? ms.title : '';
-  el('pm-client').value = client;
-  el('pm-desc').value   = description;
-  el('pm-due').value    = ms && ms.due_on ? ms.due_on.slice(0, 10) : '';
+  el('pm-name').value     = ms ? ms.title : '';
+  el('pm-desc').value     = meta.description;
+  el('pm-due').value      = ms && ms.due_on ? ms.due_on.slice(0, 10) : '';
+  el('pm-client').value   = meta.client;
+  el('pm-contact').value  = meta.contact;
+  el('pm-email').value    = meta.email;
+  el('pm-phone').value    = meta.phone;
+  el('pm-gps').value      = meta.gps;
+  el('pm-town').value     = meta.town;
+  el('pm-county').value   = meta.county;
+  el('pm-province').value = meta.province;
   el('pm-error').classList.add('hidden');
   el('project-modal').classList.remove('hidden');
   setTimeout(() => el('pm-name').focus(), 50);
 }
 
-function parseProjectClient(description) {
-  if (!description) return { client: '', description: '' };
-  const match = description.match(/^Client:\s*(.+)\n*/);
-  if (!match) return { client: '', description: description.trim() };
-  return { client: match[1].trim(), description: description.slice(match[0].length).trim() };
+function parseProjectMeta(desc) {
+  const empty = { client: '', contact: '', email: '', phone: '', gps: '', town: '', county: '', province: '', description: '' };
+  if (!desc) return empty;
+  let text = desc;
+  let client = '', contact = '', email = '', phone = '', gps = '', town = '', county = '', province = '';
+  text = text.replace(/^Client:\s*(.+)[ \t]*\r?\n?/m,   (_, v) => { client   = v.trim(); return ''; });
+  text = text.replace(/^Contact:\s*(.+)[ \t]*\r?\n?/m,  (_, v) => { contact  = v.trim(); return ''; });
+  text = text.replace(/^Email:\s*(.+)[ \t]*\r?\n?/m,    (_, v) => { email    = v.trim(); return ''; });
+  text = text.replace(/^Phone:\s*(.+)[ \t]*\r?\n?/m,    (_, v) => { phone    = v.trim(); return ''; });
+  text = text.replace(/^GPS:\s*(.+)[ \t]*\r?\n?/m,      (_, v) => { gps      = v.trim(); return ''; });
+  text = text.replace(/^Town:\s*(.+)[ \t]*\r?\n?/m,     (_, v) => { town     = v.trim(); return ''; });
+  text = text.replace(/^County:\s*(.+)[ \t]*\r?\n?/m,   (_, v) => { county   = v.trim(); return ''; });
+  text = text.replace(/^Province:\s*(.+)[ \t]*\r?\n?/m, (_, v) => { province = v.trim(); return ''; });
+  return { client, contact, email, phone, gps, town, county, province, description: text.trim() };
+}
+
+function buildProjectDescription(meta, description) {
+  const { client, contact, email, phone, gps, town, county, province } = meta;
+  const lines = [];
+  if (client)   lines.push(`Client: ${client}`);
+  if (contact)  lines.push(`Contact: ${contact}`);
+  if (email)    lines.push(`Email: ${email}`);
+  if (phone)    lines.push(`Phone: ${phone}`);
+  if (gps)      lines.push(`GPS: ${gps}`);
+  if (town)     lines.push(`Town: ${town}`);
+  if (county)   lines.push(`County: ${county}`);
+  if (province) lines.push(`Province: ${province}`);
+  const parts = [];
+  if (lines.length) parts.push(lines.join('\n'));
+  if (description)  parts.push(description);
+  return parts.join('\n\n');
 }
 
 function projectLabel(m) {
-  const { client } = parseProjectClient(m.description || '');
+  const { client } = parseProjectMeta(m.description || '');
   return client ? `${m.title} — ${client}` : m.title;
 }
 
@@ -1094,11 +1133,18 @@ async function saveProject() {
 
   try {
     const payload = { title: name };
-    const client = el('pm-client').value.trim();
-    const desc   = el('pm-desc').value.trim();
-    const due    = el('pm-due').value;
-    const fullDesc = [client ? `Client: ${client}` : '', desc].filter(Boolean).join('\n\n');
-    payload.description = fullDesc;
+    const desc = el('pm-desc').value.trim();
+    const due  = el('pm-due').value;
+    payload.description = buildProjectDescription({
+      client:   el('pm-client').value.trim(),
+      contact:  el('pm-contact').value.trim(),
+      email:    el('pm-email').value.trim(),
+      phone:    el('pm-phone').value.trim(),
+      gps:      el('pm-gps').value.trim(),
+      town:     el('pm-town').value.trim(),
+      county:   el('pm-county').value.trim(),
+      province: el('pm-province').value.trim(),
+    }, desc);
     if (due)  payload.due_on = `${due}T00:00:00Z`;
     else if (isEditing) payload.due_on = null;
 
@@ -1383,8 +1429,8 @@ function renderProjects() {
   const sortBy = el('projects-sort-select').value;
   const sorted = state.milestones.slice().sort((a, b) => {
     if (sortBy === 'client') {
-      const ca = parseProjectClient(a.description || '').client.toLowerCase();
-      const cb = parseProjectClient(b.description || '').client.toLowerCase();
+      const ca = parseProjectMeta(a.description || '').client.toLowerCase();
+      const cb = parseProjectMeta(b.description || '').client.toLowerCase();
       return ca.localeCompare(cb) || a.title.localeCompare(b.title);
     }
     if (sortBy === 'due') {
@@ -1407,7 +1453,7 @@ function renderProjects() {
 }
 
 function buildProjectCard(ms, issues) {
-  const { client, description } = parseProjectClient(ms.description || '');
+  const { client, contact, email, phone, gps, town, county, province, description } = parseProjectMeta(ms.description || '');
 
   const card = document.createElement('div');
   card.className = 'project-card'; card.setAttribute('tabindex', '0');
@@ -1448,6 +1494,55 @@ function buildProjectCard(ms, issues) {
     const descEl = document.createElement('div'); descEl.className = 'project-desc';
     descEl.textContent = description;
     card.appendChild(descEl);
+  }
+
+  // Client contact info (show only filled fields)
+  if (contact || email || phone) {
+    const sec = document.createElement('div'); sec.className = 'project-info-section';
+    const lbl = document.createElement('div'); lbl.className = 'project-info-label';
+    lbl.textContent = 'Contact';
+    sec.appendChild(lbl);
+    if (contact) {
+      const row = document.createElement('div'); row.className = 'project-info-row';
+      const icon = document.createElement('span'); icon.className = 'project-info-icon'; icon.textContent = '👤';
+      const txt = document.createElement('span'); txt.textContent = contact;
+      row.appendChild(icon); row.appendChild(txt); sec.appendChild(row);
+    }
+    if (email) {
+      const row = document.createElement('div'); row.className = 'project-info-row';
+      const icon = document.createElement('span'); icon.className = 'project-info-icon'; icon.textContent = '✉';
+      const a = document.createElement('a'); a.href = `mailto:${email}`; a.textContent = email;
+      a.addEventListener('click', e => e.stopPropagation());
+      row.appendChild(icon); row.appendChild(a); sec.appendChild(row);
+    }
+    if (phone) {
+      const row = document.createElement('div'); row.className = 'project-info-row';
+      const icon = document.createElement('span'); icon.className = 'project-info-icon'; icon.textContent = '📞';
+      const a = document.createElement('a'); a.href = `tel:${phone.replace(/\s/g, '')}`; a.textContent = phone;
+      a.addEventListener('click', e => e.stopPropagation());
+      row.appendChild(icon); row.appendChild(a); sec.appendChild(row);
+    }
+    card.appendChild(sec);
+  }
+
+  // Location info (show only filled fields)
+  if (gps || town || county || province) {
+    const sec = document.createElement('div'); sec.className = 'project-info-section';
+    const lbl = document.createElement('div'); lbl.className = 'project-info-label';
+    lbl.textContent = '📍 Location';
+    sec.appendChild(lbl);
+    if (gps) {
+      const row = document.createElement('div'); row.className = 'project-info-row';
+      row.textContent = `GPS: ${gps}`;
+      sec.appendChild(row);
+    }
+    const place = [town, county, province].filter(Boolean).join(', ');
+    if (place) {
+      const row = document.createElement('div'); row.className = 'project-info-row';
+      row.textContent = place;
+      sec.appendChild(row);
+    }
+    card.appendChild(sec);
   }
 
   // Stage breakdown
