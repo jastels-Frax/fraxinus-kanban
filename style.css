@@ -275,6 +275,7 @@ a { color: var(--green-dark); }
   border: 1px solid var(--gray-200);
   border-left: 5px solid var(--gray-300);
   user-select: none;
+  position: relative;
 }
 .card:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
 .card.dragging { opacity: 0.45; cursor: grabbing; transform: rotate(1.5deg); }
@@ -321,6 +322,41 @@ a { color: var(--green-dark); }
 .due-date.overdue { color: var(--red); font-weight: 700; }
 .due-date.soon    { color: var(--yellow); font-weight: 600; }
 .effort-chip { font-size: 10px; color: var(--gray-500); white-space: nowrap; }
+
+.card-complete-btn {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid var(--green-mid);
+  background: #fff;
+  color: var(--green-dark);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+  z-index: 2;
+  padding: 0;
+}
+.card:hover .card-complete-btn { opacity: 1; }
+.card-complete-btn:hover { background: var(--green-dark); color: #fff; border-color: var(--green-dark); }
+
+.cn-task-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gray-800);
+  padding: 8px 12px;
+  background: var(--gray-100);
+  border-radius: var(--radius);
+  margin-bottom: 14px;
+  line-height: 1.4;
+}
 .effort-input { display: flex; gap: 6px; align-items: center; }
 .effort-input .field-input { flex: 1; min-width: 0; }
 .effort-toggle { display: flex; border: 1px solid var(--gray-300); border-radius: var(--radius); overflow: hidden; flex-shrink: 0; }

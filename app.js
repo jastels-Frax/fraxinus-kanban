@@ -80,6 +80,7 @@ const modal = {
   editingProject:    null,
   selectedAssignees: [], // array of unified member objects
   pickerOpen:        false,
+  completingIssue:   null,
 };
 
 let pendingAvatar = null; // base64 data URL staged for new team member
@@ -203,9 +204,19 @@ function bindUIEvents() {
     el('team-add-photo-clear').classList.add('hidden');
   });
 
+  // Completion modal
+  el('cn-x').addEventListener('click', closeCompletionModal);
+  el('cn-cancel').addEventListener('click', closeCompletionModal);
+  el('cn-confirm').addEventListener('click', confirmCompletion);
+  el('cn-notes').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) confirmCompletion();
+  });
+  addBackdropClose('completion-modal', closeCompletionModal);
+
   // Global keyboard shortcuts
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
+      if (!el('completion-modal').classList.contains('hidden')) { closeCompletionModal(); return; }
       if (!el('project-modal').classList.contains('hidden')) { closeProjectModal(); return; }
       if (!el('team-modal').classList.contains('hidden'))    { closeTeamModal();    return; }
       if (!el('task-modal').classList.contains('hidden'))    { closeTaskModal();    return; }
@@ -621,6 +632,20 @@ function buildCard(issue) {
   });
   card.addEventListener('dragend', () => { state.draggedIssue = null; card.classList.remove('dragging'); });
 
+  const stage = issue.labels.find(l => STAGE_LABELS.includes(l.name));
+  if (!stage || stage.name !== 'Delivered / Closed') {
+    const completeBtn = document.createElement('button');
+    completeBtn.type = 'button';
+    completeBtn.className = 'card-complete-btn';
+    completeBtn.title = 'Mark as completed';
+    completeBtn.textContent = '✓';
+    completeBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      openCompletionModal(issue);
+    });
+    card.appendChild(completeBtn);
+  }
+
   const titleEl = document.createElement('div');
   titleEl.className = 'card-title'; titleEl.textContent = issue.title;
   card.appendChild(titleEl);
@@ -765,16 +790,26 @@ function buildPersonCard(member, issues) {
 // Drag & Drop — Move Issue
 // ============================================================
 
-async function moveIssueToStage(issue, newStage) {
+async function moveIssueToStage(issue, newStage, completionNotes = undefined) {
   if (issue.labels.some(l => l.name === newStage)) return;
+  if (newStage === 'Delivered / Closed' && completionNotes === undefined) {
+    openCompletionModal(issue);
+    return;
+  }
   const newLabels = issue.labels.map(l => l.name).filter(n => !STAGE_LABELS.includes(n)).concat(newStage);
+  let bodyUpdate = {};
+  if (newStage === 'Delivered / Closed' && completionNotes) {
+    const parts = parseBodyParts(issue.body);
+    const newDesc = `📋 **Completion Notes:** ${completionNotes}\n\n${parts.description}`.trim();
+    bodyUpdate.body = buildIssueBody(parts.due, parts.effort, parts.localAssignees, newDesc);
+  }
   const orig = issue.labels;
   issue.labels = [...issue.labels.filter(l => !STAGE_LABELS.includes(l.name)),
     { name: newStage, color: STAGE_COLORS[newStage].replace('#', '') }];
   renderBoard();
   try {
     const res = await ghFetch(`repos/${state.owner}/${state.repo}/issues/${issue.number}`, state.token,
-      { method: 'PATCH', body: JSON.stringify({ labels: newLabels }) });
+      { method: 'PATCH', body: JSON.stringify({ labels: newLabels, ...bodyUpdate }) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const updated = await res.json();
     const idx = state.issues.findIndex(i => i.number === issue.number);
@@ -785,6 +820,31 @@ async function moveIssueToStage(issue, newStage) {
     issue.labels = orig; renderBoard();
     toast(`Could not move task: ${err.message}`, 'error');
   }
+}
+
+// ============================================================
+// Completion Modal
+// ============================================================
+
+function openCompletionModal(issue) {
+  modal.completingIssue = issue;
+  el('cn-task-title').textContent = issue.title;
+  el('cn-notes').value = '';
+  el('completion-modal').classList.remove('hidden');
+  setTimeout(() => el('cn-notes').focus(), 50);
+}
+
+function closeCompletionModal() {
+  modal.completingIssue = null;
+  el('completion-modal').classList.add('hidden');
+}
+
+async function confirmCompletion() {
+  const issue = modal.completingIssue;
+  if (!issue) return;
+  const notes = el('cn-notes').value.trim();
+  closeCompletionModal();
+  await moveIssueToStage(issue, 'Delivered / Closed', notes || null);
 }
 
 // ============================================================

@@ -191,6 +191,29 @@
   </div>
 </div>
 
+<!-- ===================== COMPLETION NOTES MODAL ===================== -->
+<div id="completion-modal" class="modal-overlay modal-stacked hidden">
+  <div class="modal modal-sm">
+    <div class="modal-topbar">
+      <span class="modal-topbar-left">&#10003; Mark as Completed</span>
+      <button class="modal-x" id="cn-x" aria-label="Close">&#x2715;</button>
+    </div>
+    <div class="modal-content">
+      <div class="cn-task-name" id="cn-task-title"></div>
+      <div class="field-group">
+        <label class="field-label" for="cn-notes">Completion Notes <span class="optional">(optional)</span></label>
+        <textarea class="field-textarea" id="cn-notes" rows="4" placeholder="What was accomplished? Any final observations or outcomes&hellip;"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <div class="modal-actions" style="width:100%;justify-content:flex-end">
+        <button type="button" class="btn btn-ghost" id="cn-cancel">Cancel</button>
+        <button type="button" class="btn btn-primary" id="cn-confirm">&#10003; Mark Complete</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ===================== PROJECT MODAL (create milestone) ===================== -->
 <div id="project-modal" class="modal-overlay modal-stacked hidden">
   <div class="modal modal-sm">
