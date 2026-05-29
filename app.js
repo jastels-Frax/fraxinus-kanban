@@ -74,6 +74,33 @@ const state = {
   filters: { milestone: '', assignee: '', type: '', priority: '' },
 };
 
+// ============================================================
+// Card order persistence (manual drag-to-reorder within columns)
+// ============================================================
+
+function getCardOrder(stage) {
+  try { return JSON.parse(localStorage.getItem('gh_card_order') || '{}')[stage] || []; }
+  catch { return []; }
+}
+
+function saveCardOrder(stage, orderArr) {
+  try {
+    const all = JSON.parse(localStorage.getItem('gh_card_order') || '{}');
+    all[stage] = orderArr;
+    localStorage.setItem('gh_card_order', JSON.stringify(all));
+  } catch {}
+}
+
+function getDragAfterElement(container, y) {
+  const cards = [...container.querySelectorAll('.card:not(.dragging)')];
+  return cards.reduce((closest, card) => {
+    const box = card.getBoundingClientRect();
+    const offset = y - box.top - box.height / 2;
+    if (offset < 0 && offset > closest.offset) return { offset, element: card };
+    return closest;
+  }, { offset: Number.NEGATIVE_INFINITY }).element;
+}
+
 // Task modal working state
 const modal = {
   editingIssue:      null,
@@ -673,14 +700,53 @@ function buildColumn(stage, issues) {
   col.appendChild(hdr);
 
   const body = document.createElement('div'); body.className = 'column-body';
-  body.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; col.classList.add('drop-active'); });
-  body.addEventListener('dragleave', e => { if (!col.contains(e.relatedTarget)) col.classList.remove('drop-active'); });
+
+  body.addEventListener('dragover', e => {
+    e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+    col.classList.add('drop-active');
+    const afterEl = getDragAfterElement(body, e.clientY);
+    let indicator = body.querySelector('.drop-indicator');
+    if (!indicator) { indicator = document.createElement('div'); indicator.className = 'drop-indicator'; }
+    if (afterEl) body.insertBefore(indicator, afterEl);
+    else body.appendChild(indicator);
+  });
+
+  body.addEventListener('dragleave', e => {
+    if (!col.contains(e.relatedTarget)) {
+      col.classList.remove('drop-active');
+      body.querySelectorAll('.drop-indicator').forEach(el => el.remove());
+    }
+  });
+
   body.addEventListener('drop', e => {
     e.preventDefault(); col.classList.remove('drop-active');
-    if (state.draggedIssue) moveIssueToStage(state.draggedIssue, stage);
+    body.querySelectorAll('.drop-indicator').forEach(el => el.remove());
+    if (!state.draggedIssue) return;
+
+    const draggedStage = state.draggedIssue.labels.find(l => STAGE_LABELS.includes(l.name))?.name;
+    if (draggedStage === stage) {
+      // Same column: reorder
+      const afterEl = getDragAfterElement(body, e.clientY);
+      const cards = [...body.querySelectorAll('.card')];
+      const otherCards = cards.filter(c => parseInt(c.dataset.issueNumber) !== state.draggedIssue.number);
+      const afterIndex = afterEl ? otherCards.indexOf(afterEl) : otherCards.length;
+      const newOrder = otherCards.map(c => parseInt(c.dataset.issueNumber));
+      newOrder.splice(afterIndex, 0, state.draggedIssue.number);
+      saveCardOrder(stage, newOrder);
+      renderBoard();
+    } else {
+      moveIssueToStage(state.draggedIssue, stage);
+    }
   });
+
+  const savedOrder = getCardOrder(stage);
   issues.slice()
     .sort((a, b) => {
+      const ia = savedOrder.indexOf(a.number);
+      const ib = savedOrder.indexOf(b.number);
+      if (ia !== -1 && ib !== -1) return ia - ib;
+      if (ia !== -1) return -1;
+      if (ib !== -1) return 1;
       const pa = PRIORITY_LABELS.findIndex(p => a.labels.some(l => l.name === p));
       const pb = PRIORITY_LABELS.findIndex(p => b.labels.some(l => l.name === p));
       return (pa === -1 ? 99 : pa) - (pb === -1 ? 99 : pb);

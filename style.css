@@ -266,6 +266,14 @@ a { color: var(--green-dark); }
   gap: 7px;
   min-height: 48px;
 }
+.drop-indicator {
+  height: 3px;
+  background: var(--green-mid);
+  border-radius: 2px;
+  margin: 0 4px;
+  flex-shrink: 0;
+  pointer-events: none;
+}
 .column-footer { padding: 6px 8px 8px; flex-shrink: 0; }
 .add-task-btn {
   width: 100%;
