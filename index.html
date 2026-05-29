@@ -173,8 +173,14 @@
 
       <!-- Description -->
       <div class="field-group">
-        <label class="field-label" for="tm-body">Description / Notes</label>
+        <label class="field-label" for="tm-body">Description</label>
         <textarea class="field-textarea" id="tm-body" rows="4" placeholder="Additional context, references, field notes&hellip;"></textarea>
+      </div>
+
+      <!-- Completion Notes (shown only when stage = Delivered / Closed) -->
+      <div class="field-group hidden" id="tm-completion-notes-group">
+        <label class="field-label" for="tm-completion-notes">Completion Notes <span class="optional">(optional)</span></label>
+        <textarea class="field-textarea" id="tm-completion-notes" rows="3" placeholder="What was accomplished? Any final observations or outcomes&hellip;"></textarea>
       </div>
 
       <div id="tm-error" class="error-msg hidden"></div>

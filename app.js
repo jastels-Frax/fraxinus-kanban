@@ -146,6 +146,7 @@ function bindUIEvents() {
   el('tm-save').addEventListener('click', saveTask);
   el('tm-close-issue').addEventListener('click', handleCloseIssue);
   el('tm-new-project-btn').addEventListener('click', () => openProjectModal());
+  el('tm-stage').addEventListener('change', syncCompletionNotesVisibility);
   addBackdropClose('task-modal', closeTaskModal);
 
   // Effort unit toggle
@@ -800,8 +801,7 @@ async function moveIssueToStage(issue, newStage, completionNotes = undefined) {
   let bodyUpdate = {};
   if (newStage === 'Delivered / Closed' && completionNotes) {
     const parts = parseBodyParts(issue.body);
-    const newDesc = `📋 **Completion Notes:** ${completionNotes}\n\n${parts.description}`.trim();
-    bodyUpdate.body = buildIssueBody(parts.due, parts.effort, parts.localAssignees, newDesc);
+    bodyUpdate.body = buildIssueBody(parts.due, parts.effort, parts.localAssignees, parts.description, completionNotes);
   }
   const orig = issue.labels;
   issue.labels = [...issue.labels.filter(l => !STAGE_LABELS.includes(l.name)),
@@ -887,9 +887,10 @@ function openTaskModal(issue = null, defaultStage = null) {
     const pri = issue.labels.find(l => PRIORITY_LABELS.includes(l.name));
     el('tm-priority').value = pri ? pri.name : '';
     modal.selectedAssignees = [...allIssueAssignees(issue)];
-    const { due, effort, description } = parseBodyParts(issue.body);
+    const { due, effort, description, completionNotes } = parseBodyParts(issue.body);
     el('tm-due').value  = due || '';
     el('tm-body').value = description;
+    el('tm-completion-notes').value = completionNotes || '';
     if (effort) {
       const efM = effort.match(/^([\d.]+)\s*(days?|hours?)$/i);
       el('tm-effort').value = efM ? efM[1] : '';
@@ -910,16 +911,23 @@ function openTaskModal(issue = null, defaultStage = null) {
     el('tm-milestone').value = '';
     typeEl.value             = '';
     el('tm-priority').value  = '';
-    el('tm-due').value       = '';
-    el('tm-body').value      = '';
-    el('tm-effort').value    = '';
+    el('tm-due').value              = '';
+    el('tm-body').value             = '';
+    el('tm-effort').value           = '';
+    el('tm-completion-notes').value = '';
     el('tm-effort-toggle').querySelectorAll('.effort-unit').forEach((b, i) => b.classList.toggle('active', i === 0));
   }
 
+  syncCompletionNotesVisibility();
   updateAssigneeDisplay();
   buildAssigneeList('');
   el('task-modal').classList.remove('hidden');
   setTimeout(() => el('tm-title').focus(), 50);
+}
+
+function syncCompletionNotesVisibility() {
+  const isDelivered = el('tm-stage').value === 'Delivered / Closed';
+  el('tm-completion-notes-group').classList.toggle('hidden', !isDelivered);
 }
 
 function closeTaskModal() {
@@ -950,7 +958,8 @@ async function saveTask() {
   const taskType = el('tm-type').value;
   const priority = el('tm-priority').value;
   const due      = el('tm-due').value;
-  const bodyText = el('tm-body').value.trim();
+  const bodyText       = el('tm-body').value.trim();
+  const completionText = el('tm-completion-notes').value.trim();
   const effortVal  = el('tm-effort').value.trim();
   const activeUnit = el('tm-effort-toggle').querySelector('.effort-unit.active');
   const effortStr  = effortVal && activeUnit ? `${effortVal} ${activeUnit.dataset.unit}` : null;
@@ -972,7 +981,7 @@ async function saveTask() {
 
   const payload = {
     title,
-    body:      buildIssueBody(due, effortStr, localNames, bodyText),
+    body:      buildIssueBody(due, effortStr, localNames, bodyText, completionText),
     labels,
     assignees: githubLogins,
   };
@@ -1674,17 +1683,23 @@ function parseDueDate(body) {
 }
 
 function parseBodyParts(body) {
-  if (!body) return { due: null, effort: null, localAssignees: [], description: '' };
+  if (!body) return { due: null, effort: null, localAssignees: [], description: '', completionNotes: '' };
   let text = body;
-  let due = null; let effort = null;
+  let due = null; let effort = null; let completionNotes = '';
   const localAssignees = [];
+  const cnSep = '\n\n---\n**Completion Notes:**\n';
+  const cnIdx = text.indexOf(cnSep);
+  if (cnIdx !== -1) {
+    completionNotes = text.slice(cnIdx + cnSep.length).trim();
+    text = text.slice(0, cnIdx);
+  }
   text = text.replace(/^Due:\s*(\d{4}-\d{2}-\d{2})[ \t]*\r?\n?/m,   (_, d) => { due = d; return ''; });
   text = text.replace(/^Effort:\s*(.+)[ \t]*\r?\n?/m, (_, e) => { effort = e.trim(); return ''; });
   text = text.replace(/^Local-Assignee:\s*(.+)[ \t]*\r?\n?/mg, (_, n) => { localAssignees.push(n.trim()); return ''; });
-  return { due, effort, localAssignees, description: text.trim() };
+  return { due, effort, localAssignees, description: text.trim(), completionNotes };
 }
 
-function buildIssueBody(due, effort, localAssigneeNames, description) {
+function buildIssueBody(due, effort, localAssigneeNames, description, completionNotes = '') {
   const metaLines = [];
   if (due)    metaLines.push(`Due: ${due}`);
   if (effort) metaLines.push(`Effort: ${effort}`);
@@ -1692,6 +1707,7 @@ function buildIssueBody(due, effort, localAssigneeNames, description) {
   const parts = [];
   if (metaLines.length) parts.push(metaLines.join('\n'));
   if (description)      parts.push(description);
+  if (completionNotes)  parts.push(`---\n**Completion Notes:**\n${completionNotes}`);
   return parts.join('\n\n');
 }
 
