@@ -630,10 +630,26 @@ a { color: var(--green-dark); }
   gap: 5px;
   font-size: 11px;
   color: var(--gray-600);
+  min-width: 0;
+}
+.project-info-row a,
+.project-info-row > span:not(.project-info-icon) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 .project-info-row a { color: var(--green-dark); text-decoration: none; }
 .project-info-row a:hover { text-decoration: underline; }
 .project-info-icon { font-size: 11px; flex-shrink: 0; width: 14px; text-align: center; }
+.project-location-row {
+  font-size: 11px;
+  color: var(--gray-500);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-top: 3px;
+}
 
 .project-stages { padding: 10px 16px 12px; display: flex; flex-direction: column; gap: 5px; }
 

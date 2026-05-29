@@ -1675,14 +1675,14 @@ function buildProjectCard(ms, issues) {
     if (email) {
       const row = document.createElement('div'); row.className = 'project-info-row';
       const icon = document.createElement('span'); icon.className = 'project-info-icon'; icon.textContent = '✉';
-      const a = document.createElement('a'); a.href = `mailto:${email}`; a.textContent = email;
+      const a = document.createElement('a'); a.href = `mailto:${email}`; a.textContent = email; a.title = email;
       a.addEventListener('click', e => e.stopPropagation());
       row.appendChild(icon); row.appendChild(a); sec.appendChild(row);
     }
     if (phone) {
       const row = document.createElement('div'); row.className = 'project-info-row';
       const icon = document.createElement('span'); icon.className = 'project-info-icon'; icon.textContent = '📞';
-      const a = document.createElement('a'); a.href = `tel:${phone.replace(/\s/g, '')}`; a.textContent = phone;
+      const a = document.createElement('a'); a.href = `tel:${phone.replace(/\s/g, '')}`; a.textContent = phone; a.title = phone;
       a.addEventListener('click', e => e.stopPropagation());
       row.appendChild(icon); row.appendChild(a); sec.appendChild(row);
     }
