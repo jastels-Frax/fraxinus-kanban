@@ -392,6 +392,124 @@ a { color: var(--green-dark); }
 .effort-unit:not(.active):hover { background: var(--gray-100); }
 
 /* ============================================================
+   TASK VIEW MODAL
+   ============================================================ */
+.tv-topbar-meta { display: flex; align-items: center; gap: 8px; }
+
+.tv-stage-chip {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: #fff;
+}
+
+.tv-content { gap: 0; }
+
+.tv-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--gray-800);
+  line-height: 1.35;
+  margin-bottom: 12px;
+}
+
+.tv-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.tv-chip {
+  padding: 3px 9px;
+  border-radius: 9px;
+  font-size: 11px;
+  background: var(--gray-100);
+  color: var(--gray-600);
+  white-space: nowrap;
+}
+
+.tv-assignees-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-bottom: 14px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid var(--gray-100);
+}
+.tv-assignee {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--gray-700);
+}
+
+.tv-section {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--gray-100);
+}
+.tv-section-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.55px;
+  color: var(--gray-400);
+  margin-bottom: 6px;
+}
+.tv-section-body {
+  font-size: 13px;
+  color: var(--gray-700);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.tv-completion {
+  background: var(--green-bg);
+  border: 1px solid var(--green-light);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  border-top: none;
+}
+.tv-completion.tv-section { border-top: 1px solid var(--green-light); }
+.tv-completion .tv-section-label { color: var(--green-dark); }
+.tv-completion .tv-section-body { color: var(--gray-700); }
+
+.tv-project-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.tv-project-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--green-dark);
+  margin-bottom: 4px;
+}
+.tv-info-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--gray-600);
+}
+.tv-info-row a { color: var(--green-dark); text-decoration: none; }
+.tv-info-row a:hover { text-decoration: underline; }
+.tv-info-icon { width: 15px; text-align: center; flex-shrink: 0; font-size: 11px; }
+.tv-location-row {
+  font-size: 12px;
+  color: var(--gray-500);
+  font-style: italic;
+  padding-top: 4px;
+  margin-top: 2px;
+  border-top: 1px solid var(--gray-100);
+}
+
+/* ============================================================
    SKELETON LOADING
    ============================================================ */
 .card-skeleton { background: #fff; border-radius: var(--radius); padding: 11px 12px; border: 1px solid var(--gray-200); }

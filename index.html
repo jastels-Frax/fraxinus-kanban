@@ -81,6 +81,47 @@
   </div>
 </div>
 
+<!-- ===================== TASK VIEW MODAL (read-only detail) ===================== -->
+<div id="task-view-modal" class="modal-overlay hidden">
+  <div class="modal modal-wide">
+    <div class="modal-topbar">
+      <div class="tv-topbar-meta">
+        <span id="tv-number" class="issue-badge hidden"></span>
+        <span id="tv-stage-chip" class="tv-stage-chip"></span>
+      </div>
+      <button class="modal-x" id="tv-x" aria-label="Close">&#x2715;</button>
+    </div>
+    <div class="modal-content tv-content">
+      <h2 id="tv-title" class="tv-title"></h2>
+      <div id="tv-chips" class="tv-chips"></div>
+      <div id="tv-assignees-row" class="tv-assignees-row hidden"></div>
+
+      <div id="tv-description-section" class="tv-section hidden">
+        <div class="tv-section-label">Description</div>
+        <div id="tv-description-body" class="tv-section-body"></div>
+      </div>
+
+      <div id="tv-completion-section" class="tv-section tv-completion hidden">
+        <div class="tv-section-label">&#128203; Completion Notes</div>
+        <div id="tv-completion-body" class="tv-section-body"></div>
+      </div>
+
+      <div id="tv-project-section" class="tv-section hidden">
+        <div class="tv-section-label">Project</div>
+        <div id="tv-project-body" class="tv-project-body"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <a id="tv-gh-link" href="#" target="_blank" rel="noopener" class="modal-gh-link hidden">View on GitHub &#8599;</a>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="tv-close">Close</button>
+        <button type="button" class="btn btn-success hidden" id="tv-mark-complete">&#10003; Mark as Complete</button>
+        <button type="button" class="btn btn-primary" id="tv-edit">&#9998; Edit Task</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ===================== TASK MODAL (create / edit) ===================== -->
 <div id="task-modal" class="modal-overlay hidden">
   <div class="modal modal-wide">

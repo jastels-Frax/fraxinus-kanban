@@ -81,6 +81,7 @@ const modal = {
   selectedAssignees: [], // array of unified member objects
   pickerOpen:        false,
   completingIssue:   null,
+  viewingIssue:      null,
 };
 
 let pendingAvatar = null; // base64 data URL staged for new team member
@@ -139,6 +140,21 @@ function bindUIEvents() {
   el('export-pdf-btn').addEventListener('click', exportPDF);
   el('new-project-tab-btn').addEventListener('click', () => openProjectModal());
   el('projects-sort-select').addEventListener('change', renderProjects);
+
+  // Task view modal
+  el('tv-x').addEventListener('click', closeTaskView);
+  el('tv-close').addEventListener('click', closeTaskView);
+  el('tv-edit').addEventListener('click', () => {
+    const issue = modal.viewingIssue;
+    closeTaskView();
+    openTaskModal(issue);
+  });
+  el('tv-mark-complete').addEventListener('click', () => {
+    const issue = modal.viewingIssue;
+    closeTaskView();
+    openCompletionModal(issue);
+  });
+  addBackdropClose('task-view-modal', closeTaskView);
 
   // Task modal
   el('tm-x').addEventListener('click', closeTaskModal);
@@ -220,11 +236,12 @@ function bindUIEvents() {
   // Global keyboard shortcuts
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
-      if (!el('completion-modal').classList.contains('hidden')) { closeCompletionModal(); return; }
-      if (!el('project-modal').classList.contains('hidden')) { closeProjectModal(); return; }
-      if (!el('team-modal').classList.contains('hidden'))    { closeTeamModal();    return; }
-      if (!el('task-modal').classList.contains('hidden'))    { closeTaskModal();    return; }
-      if (!el('setup-modal').classList.contains('hidden'))   { el('setup-modal').classList.add('hidden'); return; }
+      if (!el('completion-modal').classList.contains('hidden'))  { closeCompletionModal(); return; }
+      if (!el('project-modal').classList.contains('hidden'))     { closeProjectModal();    return; }
+      if (!el('team-modal').classList.contains('hidden'))        { closeTeamModal();       return; }
+      if (!el('task-modal').classList.contains('hidden'))        { closeTaskModal();       return; }
+      if (!el('task-view-modal').classList.contains('hidden'))   { closeTaskView();        return; }
+      if (!el('setup-modal').classList.contains('hidden'))       { el('setup-modal').classList.add('hidden'); return; }
     }
     const tag = document.activeElement.tagName;
     if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
@@ -628,7 +645,7 @@ function buildCard(issue) {
   const priority = PRIORITY_LABELS.find(p => issue.labels.some(l => l.name === p));
   if (priority) card.dataset.priority = priority;
 
-  card.addEventListener('click', () => { if (!card.classList.contains('dragging')) openTaskModal(issue); });
+  card.addEventListener('click', () => { if (!card.classList.contains('dragging')) openTaskView(issue); });
   card.addEventListener('dragstart', e => {
     state.draggedIssue = issue; card.classList.add('dragging');
     e.dataTransfer.effectAllowed = 'move';
@@ -861,6 +878,143 @@ async function confirmCompletion() {
 }
 
 // ============================================================
+// Task View Modal (read-only)
+// ============================================================
+
+function openTaskView(issue) {
+  modal.viewingIssue = issue;
+
+  el('tv-number').textContent = `#${issue.number}`;
+  el('tv-number').classList.remove('hidden');
+  el('tv-title').textContent = issue.title;
+
+  // Stage chip
+  const stage = issue.labels.find(l => STAGE_LABELS.includes(l.name));
+  const chip = el('tv-stage-chip');
+  chip.textContent  = stage ? stage.name : '';
+  chip.style.background = stage ? STAGE_COLORS[stage.name] : '#666';
+
+  // Metadata chips row
+  const chipsEl = el('tv-chips');
+  chipsEl.innerHTML = '';
+  const taskType = issue.labels.find(l => TASK_TYPE_LABELS.includes(l.name));
+  const priority = PRIORITY_LABELS.find(p => issue.labels.some(l => l.name === p));
+  const { due, effort, description, completionNotes } = parseBodyParts(issue.body);
+
+  if (taskType) {
+    const c = document.createElement('span'); c.className = 'label-chip';
+    c.textContent = taskType.name;
+    const hex = taskType.color.replace(/^#/, '');
+    c.style.background = `#${hex}`; c.style.color = isLightHex(hex) ? '#1a1a1a' : '#fff';
+    chipsEl.appendChild(c);
+  }
+  if (priority) {
+    const c = document.createElement('span'); c.className = 'priority-badge'; c.dataset.priority = priority;
+    c.textContent = priority.replace('Priority: ', '');
+    chipsEl.appendChild(c);
+  }
+  if (effort) {
+    const c = document.createElement('span'); c.className = 'tv-chip';
+    c.textContent = `⏱ ${effort}`; chipsEl.appendChild(c);
+  }
+  if (due) {
+    const c = document.createElement('span');
+    const today = new Date(); today.setHours(0,0,0,0);
+    const days = Math.ceil((new Date(`${due}T00:00:00`) - today) / 86400000);
+    c.className = 'due-date tv-chip';
+    if (days < 0) c.classList.add('overdue');
+    else if (days <= 7) c.classList.add('soon');
+    c.textContent = `Due: ${due}`;
+    chipsEl.appendChild(c);
+  }
+
+  // Assignees
+  const assigneesEl = el('tv-assignees-row');
+  assigneesEl.innerHTML = '';
+  const assignees = allIssueAssignees(issue);
+  if (assignees.length) {
+    assignees.forEach(m => {
+      const wrap = document.createElement('div'); wrap.className = 'tv-assignee';
+      wrap.appendChild(makeMemberAvatar(m, 26));
+      const name = document.createElement('span'); name.textContent = m.name;
+      wrap.appendChild(name); assigneesEl.appendChild(wrap);
+    });
+    assigneesEl.classList.remove('hidden');
+  } else {
+    assigneesEl.classList.add('hidden');
+  }
+
+  // Description
+  const descSec = el('tv-description-section');
+  if (description) {
+    el('tv-description-body').textContent = description;
+    descSec.classList.remove('hidden');
+  } else { descSec.classList.add('hidden'); }
+
+  // Completion notes
+  const cnSec = el('tv-completion-section');
+  if (completionNotes) {
+    el('tv-completion-body').textContent = completionNotes;
+    cnSec.classList.remove('hidden');
+  } else { cnSec.classList.add('hidden'); }
+
+  // Project + client/location info
+  const projSec = el('tv-project-section');
+  const ms = issue.milestone ? state.milestones.find(m => m.number === issue.milestone.number) : null;
+  if (ms) {
+    const meta = parseProjectMeta(ms.description || '');
+    const body = el('tv-project-body');
+    body.innerHTML = '';
+
+    const nameEl = document.createElement('div'); nameEl.className = 'tv-project-name';
+    nameEl.textContent = ms.title; body.appendChild(nameEl);
+
+    if (meta.client) {
+      const r = document.createElement('div'); r.className = 'tv-info-row';
+      r.textContent = meta.client; body.appendChild(r);
+    }
+    if (meta.contact) {
+      const r = document.createElement('div'); r.className = 'tv-info-row';
+      const ic = document.createElement('span'); ic.className = 'tv-info-icon'; ic.textContent = '👤';
+      const tx = document.createElement('span'); tx.textContent = meta.contact;
+      r.appendChild(ic); r.appendChild(tx); body.appendChild(r);
+    }
+    if (meta.email) {
+      const r = document.createElement('div'); r.className = 'tv-info-row';
+      const ic = document.createElement('span'); ic.className = 'tv-info-icon'; ic.textContent = '✉';
+      const a = document.createElement('a'); a.href = `mailto:${meta.email}`; a.textContent = meta.email;
+      r.appendChild(ic); r.appendChild(a); body.appendChild(r);
+    }
+    if (meta.phone) {
+      const r = document.createElement('div'); r.className = 'tv-info-row';
+      const ic = document.createElement('span'); ic.className = 'tv-info-icon'; ic.textContent = '📞';
+      const a = document.createElement('a'); a.href = `tel:${meta.phone.replace(/\s/g,'')}`; a.textContent = meta.phone;
+      r.appendChild(ic); r.appendChild(a); body.appendChild(r);
+    }
+    const place = [meta.gps ? `GPS: ${meta.gps}` : null, [meta.town, meta.county, meta.province].filter(Boolean).join(', ')].filter(Boolean).join(' · ');
+    if (place) {
+      const r = document.createElement('div'); r.className = 'tv-location-row';
+      r.textContent = `📍 ${place}`; body.appendChild(r);
+    }
+    projSec.classList.remove('hidden');
+  } else { projSec.classList.add('hidden'); }
+
+  // GitHub link
+  const ghLink = el('tv-gh-link');
+  ghLink.href = issue.html_url; ghLink.classList.remove('hidden');
+
+  // Mark as complete button — hide if already delivered
+  const isDelivered = stage && stage.name === 'Delivered / Closed';
+  el('tv-mark-complete').classList.toggle('hidden', isDelivered);
+
+  el('task-view-modal').classList.remove('hidden');
+}
+
+function closeTaskView() {
+  modal.viewingIssue = null;
+  el('task-view-modal').classList.add('hidden');
+}
+
 // Task Modal — Open / Close / Fill
 // ============================================================
 
