@@ -1423,6 +1423,7 @@ function openProjectModal(ms = null, clientPrefill = null) {
   el('pm-town').value     = meta.town;
   el('pm-county').value   = meta.county;
   el('pm-province').value = meta.province;
+  el('pm-felt').value     = meta.feltMap;
   el('pm-error').classList.add('hidden');
 
   refreshClientRosterSelect();
@@ -1468,10 +1469,10 @@ function fillProjectClientFromRoster(clientId) {
 }
 
 function parseProjectMeta(desc) {
-  const empty = { client: '', contact: '', email: '', phone: '', gps: '', town: '', county: '', province: '', description: '' };
+  const empty = { client: '', contact: '', email: '', phone: '', gps: '', town: '', county: '', province: '', feltMap: '', description: '' };
   if (!desc) return empty;
   let text = desc;
-  let client = '', contact = '', email = '', phone = '', gps = '', town = '', county = '', province = '';
+  let client = '', contact = '', email = '', phone = '', gps = '', town = '', county = '', province = '', feltMap = '';
   text = text.replace(/^Client:\s*(.+)[ \t]*\r?\n?/m,   (_, v) => { client   = v.trim(); return ''; });
   text = text.replace(/^Contact:\s*(.+)[ \t]*\r?\n?/m,  (_, v) => { contact  = v.trim(); return ''; });
   text = text.replace(/^Email:\s*(.+)[ \t]*\r?\n?/m,    (_, v) => { email    = v.trim(); return ''; });
@@ -1480,11 +1481,12 @@ function parseProjectMeta(desc) {
   text = text.replace(/^Town:\s*(.+)[ \t]*\r?\n?/m,     (_, v) => { town     = v.trim(); return ''; });
   text = text.replace(/^County:\s*(.+)[ \t]*\r?\n?/m,   (_, v) => { county   = v.trim(); return ''; });
   text = text.replace(/^Province:\s*(.+)[ \t]*\r?\n?/m, (_, v) => { province = v.trim(); return ''; });
-  return { client, contact, email, phone, gps, town, county, province, description: text.trim() };
+  text = text.replace(/^FeltMap:\s*(.+)[ \t]*\r?\n?/m,  (_, v) => { feltMap  = v.trim(); return ''; });
+  return { client, contact, email, phone, gps, town, county, province, feltMap, description: text.trim() };
 }
 
 function buildProjectDescription(meta, description) {
-  const { client, contact, email, phone, gps, town, county, province } = meta;
+  const { client, contact, email, phone, gps, town, county, province, feltMap } = meta;
   const lines = [];
   if (client)   lines.push(`Client: ${client}`);
   if (contact)  lines.push(`Contact: ${contact}`);
@@ -1494,6 +1496,7 @@ function buildProjectDescription(meta, description) {
   if (town)     lines.push(`Town: ${town}`);
   if (county)   lines.push(`County: ${county}`);
   if (province) lines.push(`Province: ${province}`);
+  if (feltMap)  lines.push(`FeltMap: ${feltMap}`);
   const parts = [];
   if (lines.length) parts.push(lines.join('\n'));
   if (description)  parts.push(description);
@@ -1529,6 +1532,7 @@ async function saveProject() {
       town:     el('pm-town').value.trim(),
       county:   el('pm-county').value.trim(),
       province: el('pm-province').value.trim(),
+      feltMap:  el('pm-felt').value.trim(),
     }, desc);
     if (due)  payload.due_on = `${due}T00:00:00Z`;
     else if (isEditing) payload.due_on = null;
@@ -1966,7 +1970,7 @@ function renderProjects() {
 }
 
 function buildProjectCard(ms, issues) {
-  const { client, contact, email, phone, gps, town, county, province, description } = parseProjectMeta(ms.description || '');
+  const { client, contact, email, phone, gps, town, county, province, feltMap, description } = parseProjectMeta(ms.description || '');
 
   const card = document.createElement('div');
   card.className = 'project-card'; card.setAttribute('tabindex', '0');
@@ -2014,6 +2018,18 @@ function buildProjectCard(ms, issues) {
   }
   card.appendChild(locEl);
 
+  // Felt map link — always rendered (blank if no URL)
+  const feltEl = document.createElement('div'); feltEl.className = 'project-felt-row';
+  if (feltMap) {
+    const a = document.createElement('a');
+    a.href = feltMap; a.target = '_blank'; a.rel = 'noopener';
+    a.className = 'project-felt-link';
+    a.textContent = '🗺 View Felt Map';
+    a.addEventListener('click', e => e.stopPropagation());
+    feltEl.appendChild(a);
+  }
+  card.appendChild(feltEl);
+
   // Stage dot-strip — always rendered, pins to bottom via flex
   const strip = document.createElement('div'); strip.className = 'project-stage-strip';
   STAGE_LABELS.forEach(stage => {
@@ -2039,7 +2055,7 @@ function filterProjectToBoard(ms) {
 }
 
 function openProjectView(ms, issues) {
-  const { client, contact, email, phone, gps, town, county, province, description } = parseProjectMeta(ms.description || '');
+  const { client, contact, email, phone, gps, town, county, province, feltMap, description } = parseProjectMeta(ms.description || '');
   modal.viewingProject = ms;
 
   el('pv-title').textContent = ms.title;
@@ -2134,6 +2150,17 @@ function openProjectView(ms, issues) {
     tasksBody.appendChild(row);
   });
   tasksSec.classList.toggle('hidden', !tasksBody.children.length);
+
+  // Felt map
+  const mapSec = el('pv-map-section');
+  if (feltMap) {
+    el('pv-map-link').href = feltMap;
+    el('pv-map-iframe').src = feltMap;
+    mapSec.classList.remove('hidden');
+  } else {
+    el('pv-map-iframe').src = '';
+    mapSec.classList.add('hidden');
+  }
 
   el('project-view-modal').classList.remove('hidden');
 }

@@ -319,6 +319,12 @@
         <div class="tv-section-label">Tasks by Stage</div>
         <div id="pv-tasks-body" class="project-stages pv-stages-body"></div>
       </div>
+
+      <div id="pv-map-section" class="tv-section hidden">
+        <div class="tv-section-label">&#128506; Felt Map</div>
+        <a id="pv-map-link" href="#" target="_blank" rel="noopener" class="project-felt-open-link">&#8599; Open in Felt</a>
+        <iframe id="pv-map-iframe" class="pv-map-iframe" src="" title="Felt Map" frameborder="0" allowfullscreen></iframe>
+      </div>
     </div>
     <div class="modal-footer">
       <div class="modal-actions">
@@ -402,6 +408,12 @@
           <label class="field-label" for="pm-province">Province</label>
           <input class="field-input" type="text" id="pm-province" placeholder="e.g. Nova Scotia" />
         </div>
+      </div>
+
+      <div class="pm-section-label">&#128506; Felt Map</div>
+      <div class="field-group">
+        <label class="field-label" for="pm-felt">Felt Map URL</label>
+        <input class="field-input" type="url" id="pm-felt" placeholder="https://felt.com/map/..." />
       </div>
 
       <div id="pm-error" class="error-msg hidden"></div>

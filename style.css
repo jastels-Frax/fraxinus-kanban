@@ -724,6 +724,39 @@ a { color: var(--green-dark); }
   padding-top: 3px;
 }
 
+/* Felt map row on project card */
+.project-felt-row {
+  padding: 6px 16px;
+  min-height: 30px;
+  font-size: 11px;
+  border-bottom: 1px solid var(--gray-100);
+  display: flex;
+  align-items: center;
+}
+.project-felt-link {
+  color: var(--green-dark);
+  text-decoration: none;
+  font-size: 11px;
+}
+.project-felt-link:hover { text-decoration: underline; }
+
+/* Felt map section in project view modal */
+.project-felt-open-link {
+  display: inline-block;
+  font-size: 12px;
+  color: var(--green-dark);
+  text-decoration: none;
+  margin-bottom: 8px;
+}
+.project-felt-open-link:hover { text-decoration: underline; }
+.pv-map-iframe {
+  width: 100%;
+  height: 380px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  display: block;
+}
+
 .project-stages { padding: 10px 16px 12px; display: flex; flex-direction: column; gap: 5px; }
 
 /* Section label divider inside modals (e.g. project modal Client / Location) */
