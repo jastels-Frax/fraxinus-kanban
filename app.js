@@ -2006,45 +2006,6 @@ function buildProjectCard(ms, issues) {
     card.appendChild(descEl);
   }
 
-  // Contact teaser — one compact row: 👤 name  ✉ email  📞 phone
-  if (contact || email || phone) {
-    const teaser = document.createElement('div'); teaser.className = 'project-contact-teaser';
-    if (contact) {
-      const item = document.createElement('span'); item.className = 'tease-item';
-      const icon = document.createElement('span'); icon.className = 'tease-icon'; icon.textContent = '👤';
-      const val = document.createElement('span'); val.className = 'tease-val'; val.textContent = contact;
-      item.appendChild(icon); item.appendChild(val); teaser.appendChild(item);
-    }
-    if (email) {
-      const item = document.createElement('span'); item.className = 'tease-item tease-item-email';
-      const icon = document.createElement('span'); icon.className = 'tease-icon'; icon.textContent = '✉';
-      const a = document.createElement('a'); a.href = `mailto:${email}`; a.textContent = email; a.title = email;
-      a.className = 'tease-val';
-      a.addEventListener('click', e => e.stopPropagation());
-      item.appendChild(icon); item.appendChild(a); teaser.appendChild(item);
-    }
-    if (phone) {
-      const item = document.createElement('span'); item.className = 'tease-item';
-      const icon = document.createElement('span'); icon.className = 'tease-icon'; icon.textContent = '📞';
-      const a = document.createElement('a'); a.href = `tel:${phone.replace(/\s/g, '')}`; a.textContent = phone; a.title = phone;
-      a.className = 'tease-val';
-      a.addEventListener('click', e => e.stopPropagation());
-      item.appendChild(icon); item.appendChild(a); teaser.appendChild(item);
-    }
-    card.appendChild(teaser);
-  }
-
-  // Location teaser — one compact line: 📍 GPS · Town, County, Province
-  if (gps || town || county || province) {
-    const parts = [];
-    if (gps) parts.push(gps);
-    const place = [town, county, province].filter(Boolean).join(', ');
-    if (place) parts.push(place);
-    const locEl = document.createElement('div'); locEl.className = 'project-location-teaser';
-    locEl.textContent = '📍 ' + parts.join(' · ');
-    card.appendChild(locEl);
-  }
-
   // Stage dot-strip — horizontal colored dots with counts, no stage names
   const strip = document.createElement('div'); strip.className = 'project-stage-strip';
   STAGE_LABELS.forEach(stage => {
