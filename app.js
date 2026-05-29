@@ -1966,7 +1966,7 @@ function renderProjects() {
 }
 
 function buildProjectCard(ms, issues) {
-  const { client, description } = parseProjectMeta(ms.description || '');
+  const { client, contact, email, phone, gps, town, county, province, description } = parseProjectMeta(ms.description || '');
 
   const card = document.createElement('div');
   card.className = 'project-card'; card.setAttribute('tabindex', '0');
@@ -2006,6 +2006,57 @@ function buildProjectCard(ms, issues) {
     const descEl = document.createElement('div'); descEl.className = 'project-desc';
     descEl.textContent = description;
     card.appendChild(descEl);
+  }
+
+  // Client contact info (show only filled fields)
+  if (contact || email || phone) {
+    const sec = document.createElement('div'); sec.className = 'project-info-section';
+    const lbl = document.createElement('div'); lbl.className = 'project-info-label';
+    lbl.textContent = 'Contact';
+    sec.appendChild(lbl);
+    if (contact) {
+      const row = document.createElement('div'); row.className = 'project-info-row';
+      const icon = document.createElement('span'); icon.className = 'project-info-icon'; icon.textContent = '👤';
+      const txt = document.createElement('span'); txt.textContent = contact;
+      row.appendChild(icon); row.appendChild(txt); sec.appendChild(row);
+    }
+    if (email) {
+      const row = document.createElement('div'); row.className = 'project-info-row';
+      const icon = document.createElement('span'); icon.className = 'project-info-icon'; icon.textContent = '✉';
+      const a = document.createElement('a'); a.href = `mailto:${email}`; a.textContent = email; a.title = email;
+      a.addEventListener('click', e => e.stopPropagation());
+      row.appendChild(icon); row.appendChild(a); sec.appendChild(row);
+    }
+    if (phone) {
+      const row = document.createElement('div'); row.className = 'project-info-row';
+      const icon = document.createElement('span'); icon.className = 'project-info-icon'; icon.textContent = '📞';
+      const a = document.createElement('a'); a.href = `tel:${phone.replace(/\s/g, '')}`; a.textContent = phone; a.title = phone;
+      a.addEventListener('click', e => e.stopPropagation());
+      row.appendChild(icon); row.appendChild(a); sec.appendChild(row);
+    }
+    card.appendChild(sec);
+  }
+
+  // Location info (show only filled fields)
+  if (gps || town || county || province) {
+    const sec = document.createElement('div'); sec.className = 'project-info-section';
+    const lbl = document.createElement('div'); lbl.className = 'project-info-label';
+    lbl.textContent = '📍 Location';
+    sec.appendChild(lbl);
+    if (gps) {
+      const row = document.createElement('div'); row.className = 'project-info-row';
+      const icon = document.createElement('span'); icon.className = 'project-info-icon'; icon.textContent = '';
+      const txt = document.createElement('span'); txt.textContent = `GPS: ${gps}`;
+      row.appendChild(icon); row.appendChild(txt); sec.appendChild(row);
+    }
+    const place = [town, county, province].filter(Boolean).join(', ');
+    if (place) {
+      const row = document.createElement('div'); row.className = 'project-info-row';
+      const icon = document.createElement('span'); icon.className = 'project-info-icon'; icon.textContent = '';
+      const txt = document.createElement('span'); txt.textContent = place;
+      row.appendChild(icon); row.appendChild(txt); sec.appendChild(row);
+    }
+    card.appendChild(sec);
   }
 
   // Stage breakdown

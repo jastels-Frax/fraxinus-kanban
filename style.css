@@ -575,6 +575,7 @@ a { color: var(--green-dark); }
   overflow-y: auto;
   height: calc(100% - 46px);
   align-content: start;
+  align-items: start;
 }
 .projects-empty { grid-column: 1/-1; color: var(--gray-500); padding: 32px 0; text-align: center; }
 .project-card {
