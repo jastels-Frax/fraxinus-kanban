@@ -218,6 +218,31 @@
         <textarea class="field-textarea" id="tm-body" rows="4" placeholder="Additional context, references, field notes&hellip;"></textarea>
       </div>
 
+      <!-- Task-level Client Contact (auto-populated from project, editable) -->
+      <div id="tm-client-section" class="hidden">
+        <div class="pm-section-label" style="margin-top:4px">Client Contact <span class="optional">(from project — editable per task)</span></div>
+        <div class="field-row">
+          <div class="field-group">
+            <label class="field-label" for="tm-tc-company">Company</label>
+            <input class="field-input" type="text" id="tm-tc-company" placeholder="Company name" />
+          </div>
+          <div class="field-group">
+            <label class="field-label" for="tm-tc-contact">Contact Name</label>
+            <input class="field-input" type="text" id="tm-tc-contact" placeholder="Contact person" />
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field-group">
+            <label class="field-label" for="tm-tc-email">Email</label>
+            <input class="field-input" type="email" id="tm-tc-email" placeholder="Email" />
+          </div>
+          <div class="field-group">
+            <label class="field-label" for="tm-tc-phone">Phone</label>
+            <input class="field-input" type="tel" id="tm-tc-phone" placeholder="Phone" />
+          </div>
+        </div>
+      </div>
+
       <!-- Completion Notes (shown only when stage = Delivered / Closed) -->
       <div class="field-group hidden" id="tm-completion-notes-group">
         <label class="field-label" for="tm-completion-notes">Completion Notes <span class="optional">(optional)</span></label>
@@ -286,6 +311,15 @@
       </div>
 
       <div class="pm-section-label">Client</div>
+      <div class="field-row" style="align-items:flex-end;gap:8px">
+        <div class="field-group field-grow">
+          <label class="field-label" for="pm-client-roster">Select from Client Roster</label>
+          <select class="field-select" id="pm-client-roster">
+            <option value="">— Enter manually or select —</option>
+          </select>
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm" id="pm-new-client-btn" style="flex-shrink:0;margin-bottom:1px">+ Add Client</button>
+      </div>
       <div class="field-row">
         <div class="field-group">
           <label class="field-label" for="pm-client">Company / Organization</label>
@@ -333,6 +367,49 @@
       <div class="modal-actions" style="width:100%;justify-content:flex-end">
         <button type="button" class="btn btn-ghost" id="pm-cancel">Cancel</button>
         <button type="button" class="btn btn-primary" id="pm-save">Create Project</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== CLIENT MODAL ===================== -->
+<div id="client-modal" class="modal-overlay hidden">
+  <div class="modal modal-wide">
+    <div class="modal-topbar">
+      <span class="modal-topbar-left">&#127970; Client Roster</span>
+      <button class="modal-x" id="clt-x" aria-label="Close">&#x2715;</button>
+    </div>
+    <div class="modal-content">
+      <p class="help-text">Clients can be attached to projects for quick contact access.</p>
+      <div id="client-list" class="client-list"></div>
+
+      <div class="pm-section-label" style="margin-top:18px">Add New Client</div>
+      <div class="field-row">
+        <div class="field-group">
+          <label class="field-label" for="clt-add-company">Company / Organization <span class="req">*</span></label>
+          <input class="field-input" type="text" id="clt-add-company" placeholder="e.g. Shelburne Properties" autocomplete="off" />
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="clt-add-contact">Primary Contact Name</label>
+          <input class="field-input" type="text" id="clt-add-contact" placeholder="e.g. Jane Smith" autocomplete="off" />
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field-group">
+          <label class="field-label" for="clt-add-email">Email</label>
+          <input class="field-input" type="email" id="clt-add-email" placeholder="e.g. jane@example.com" />
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="clt-add-phone">Phone</label>
+          <input class="field-input" type="tel" id="clt-add-phone" placeholder="e.g. 902-555-1234" />
+        </div>
+      </div>
+      <div id="clt-error" class="error-msg hidden"></div>
+    </div>
+    <div class="modal-footer">
+      <div class="modal-actions" style="width:100%;justify-content:flex-end">
+        <button type="button" class="btn btn-ghost" id="clt-done">Done</button>
+        <button type="button" class="btn btn-primary" id="clt-add-btn">Add Client</button>
       </div>
     </div>
   </div>
@@ -401,6 +478,7 @@
     </div>
     <div class="header-right">
       <button id="new-task-btn" class="btn btn-new-task" title="New task (N)">&#xff0b; New Task</button>
+      <button id="clients-btn" class="btn btn-header" title="Manage clients">&#127970; Clients</button>
       <button id="team-btn" class="btn btn-header" title="Manage team">&#128101; Team</button>
       <button id="export-pdf-btn" class="btn btn-header" title="Export PDF report">&#128424; Export PDF</button>
       <button id="refresh-btn" class="btn btn-header" title="Refresh (R)">&#8635;</button>

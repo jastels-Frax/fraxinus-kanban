@@ -136,6 +136,7 @@ function bindUIEvents() {
   el('refresh-btn').addEventListener('click', () => loadData(true));
   el('settings-btn').addEventListener('click', () => el('setup-modal').classList.remove('hidden'));
   el('new-task-btn').addEventListener('click', () => openTaskModal());
+  el('clients-btn').addEventListener('click', () => openClientModal());
   el('team-btn').addEventListener('click', openTeamModal);
   el('export-pdf-btn').addEventListener('click', exportPDF);
   el('new-project-tab-btn').addEventListener('click', () => openProjectModal());
@@ -166,6 +167,7 @@ function bindUIEvents() {
   });
   el('tm-new-project-btn').addEventListener('click', () => openProjectModal());
   el('tm-stage').addEventListener('change', syncCompletionNotesVisibility);
+  el('tm-milestone').addEventListener('change', () => syncTaskClientFromProject(false));
   addBackdropClose('task-modal', closeTaskModal);
 
   // Effort unit toggle
@@ -186,10 +188,26 @@ function bindUIEvents() {
     if (modal.pickerOpen && !el('tm-ap').contains(e.target)) closeAssigneePicker();
   });
 
+  // Clients modal
+  el('clt-x').addEventListener('click', closeClientModal);
+  el('clt-done').addEventListener('click', closeClientModal);
+  el('clt-add-btn').addEventListener('click', handleAddClient);
+  el('clt-add-company').addEventListener('keydown', e => { if (e.key === 'Enter') el('clt-add-contact').focus(); });
+  el('clt-add-contact').addEventListener('keydown', e => { if (e.key === 'Enter') el('clt-add-email').focus(); });
+  el('clt-add-email').addEventListener('keydown', e => { if (e.key === 'Enter') el('clt-add-phone').focus(); });
+  el('clt-add-phone').addEventListener('keydown', e => { if (e.key === 'Enter') handleAddClient(); });
+  addBackdropClose('client-modal', closeClientModal);
+
   // Project (milestone) modal
   el('pm-x').addEventListener('click', closeProjectModal);
   el('pm-cancel').addEventListener('click', closeProjectModal);
   el('pm-save').addEventListener('click', saveProject);
+  el('pm-client-roster').addEventListener('change', e => fillProjectClientFromRoster(e.target.value));
+  el('pm-new-client-btn').addEventListener('click', () => openClientModal(newClient => {
+    refreshClientRosterSelect();
+    el('pm-client-roster').value = newClient.id;
+    fillProjectClientFromRoster(newClient.id);
+  }));
   addBackdropClose('project-modal', closeProjectModal);
 
   // Team modal
@@ -237,6 +255,7 @@ function bindUIEvents() {
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
       if (!el('completion-modal').classList.contains('hidden'))  { closeCompletionModal(); return; }
+      if (!el('client-modal').classList.contains('hidden'))      { closeClientModal();     return; }
       if (!el('project-modal').classList.contains('hidden'))     { closeProjectModal();    return; }
       if (!el('team-modal').classList.contains('hidden'))        { closeTeamModal();       return; }
       if (!el('task-modal').classList.contains('hidden'))        { closeTaskModal();       return; }
@@ -385,6 +404,31 @@ function getLocalTeam() {
 
 function saveLocalTeam(members) {
   try { localStorage.setItem('gh_local_team', JSON.stringify(members)); } catch (_) {}
+}
+
+// ============================================================
+// Clients — Local Storage
+// ============================================================
+// Client shape: { id, company, contact, email, phone }
+function getClients() {
+  try { return JSON.parse(localStorage.getItem('gh_clients') || '[]'); } catch (_) { return []; }
+}
+function saveClients(list) {
+  try { localStorage.setItem('gh_clients', JSON.stringify(list)); } catch (_) {}
+}
+function addClient({ company, contact, email, phone }) {
+  const list = getClients();
+  const client = { id: `client-${Date.now()}`, company: company.trim(), contact: contact.trim(), email: email.trim(), phone: phone.trim() };
+  list.push(client);
+  saveClients(list);
+  return client;
+}
+function updateClient(id, fields) {
+  const list = getClients().map(c => c.id === id ? { ...c, ...fields } : c);
+  saveClients(list);
+}
+function deleteClient(id) {
+  saveClients(getClients().filter(c => c.id !== id));
 }
 
 function makeLocalMember(name, githubLogin = null) {
@@ -828,7 +872,7 @@ async function moveIssueToStage(issue, newStage, completionNotes = undefined) {
   let bodyUpdate = {};
   if (newStage === 'Delivered / Closed' && completionNotes) {
     const parts = parseBodyParts(issue.body);
-    bodyUpdate.body = buildIssueBody(parts.due, parts.effort, parts.localAssignees, parts.description, completionNotes);
+    bodyUpdate.body = buildIssueBody(parts.due, parts.effort, parts.localAssignees, parts.description, completionNotes, {});
   }
   const orig = issue.labels;
   issue.labels = [...issue.labels.filter(l => !STAGE_LABELS.includes(l.name)),
@@ -899,7 +943,8 @@ function openTaskView(issue) {
   chipsEl.innerHTML = '';
   const taskType = issue.labels.find(l => TASK_TYPE_LABELS.includes(l.name));
   const priority = PRIORITY_LABELS.find(p => issue.labels.some(l => l.name === p));
-  const { due, effort, description, completionNotes } = parseBodyParts(issue.body);
+  const parts = parseBodyParts(issue.body);
+  const { due, effort, description, completionNotes } = parts;
 
   if (taskType) {
     const c = document.createElement('span'); c.className = 'label-chip';
@@ -963,32 +1008,39 @@ function openTaskView(issue) {
   const ms = issue.milestone ? state.milestones.find(m => m.number === issue.milestone.number) : null;
   if (ms) {
     const meta = parseProjectMeta(ms.description || '');
+    // Task-level client info overrides project-level
+    const tc = {
+      company: parts.taskClient   || meta.client   || '',
+      contact: parts.taskContact  || meta.contact  || '',
+      email:   parts.taskEmail    || meta.email    || '',
+      phone:   parts.taskPhone    || meta.phone    || '',
+    };
     const body = el('tv-project-body');
     body.innerHTML = '';
 
     const nameEl = document.createElement('div'); nameEl.className = 'tv-project-name';
     nameEl.textContent = ms.title; body.appendChild(nameEl);
 
-    if (meta.client) {
+    if (tc.company) {
       const r = document.createElement('div'); r.className = 'tv-info-row';
-      r.textContent = meta.client; body.appendChild(r);
+      r.textContent = tc.company; body.appendChild(r);
     }
-    if (meta.contact) {
+    if (tc.contact) {
       const r = document.createElement('div'); r.className = 'tv-info-row';
       const ic = document.createElement('span'); ic.className = 'tv-info-icon'; ic.textContent = '👤';
-      const tx = document.createElement('span'); tx.textContent = meta.contact;
+      const tx = document.createElement('span'); tx.textContent = tc.contact;
       r.appendChild(ic); r.appendChild(tx); body.appendChild(r);
     }
-    if (meta.email) {
+    if (tc.email) {
       const r = document.createElement('div'); r.className = 'tv-info-row';
       const ic = document.createElement('span'); ic.className = 'tv-info-icon'; ic.textContent = '✉';
-      const a = document.createElement('a'); a.href = `mailto:${meta.email}`; a.textContent = meta.email;
+      const a = document.createElement('a'); a.href = `mailto:${tc.email}`; a.textContent = tc.email;
       r.appendChild(ic); r.appendChild(a); body.appendChild(r);
     }
-    if (meta.phone) {
+    if (tc.phone) {
       const r = document.createElement('div'); r.className = 'tv-info-row';
       const ic = document.createElement('span'); ic.className = 'tv-info-icon'; ic.textContent = '📞';
-      const a = document.createElement('a'); a.href = `tel:${meta.phone.replace(/\s/g,'')}`; a.textContent = meta.phone;
+      const a = document.createElement('a'); a.href = `tel:${tc.phone.replace(/\s/g,'')}`; a.textContent = tc.phone;
       r.appendChild(ic); r.appendChild(a); body.appendChild(r);
     }
     const place = [meta.gps ? `GPS: ${meta.gps}` : null, [meta.town, meta.county, meta.province].filter(Boolean).join(', ')].filter(Boolean).join(' · ');
@@ -1054,7 +1106,7 @@ function openTaskModal(issue = null, defaultStage = null) {
     const pri = issue.labels.find(l => PRIORITY_LABELS.includes(l.name));
     el('tm-priority').value = pri ? pri.name : '';
     modal.selectedAssignees = [...allIssueAssignees(issue)];
-    const { due, effort, description, completionNotes } = parseBodyParts(issue.body);
+    const { due, effort, description, completionNotes, taskClient, taskContact, taskEmail, taskPhone } = parseBodyParts(issue.body);
     el('tm-due').value  = due || '';
     el('tm-body').value = description;
     el('tm-completion-notes').value = completionNotes || '';
@@ -1067,6 +1119,11 @@ function openTaskModal(issue = null, defaultStage = null) {
       el('tm-effort').value = '';
       el('tm-effort-toggle').querySelectorAll('.effort-unit').forEach((b, i) => b.classList.toggle('active', i === 0));
     }
+    el('tm-tc-company').value  = taskClient  || '';
+    el('tm-tc-contact').value  = taskContact || '';
+    el('tm-tc-email').value    = taskEmail   || '';
+    el('tm-tc-phone').value    = taskPhone   || '';
+    syncTaskClientFromProject(true);
   } else {
     el('tm-heading').textContent = 'New Task';
     el('tm-number').classList.add('hidden');
@@ -1083,6 +1140,11 @@ function openTaskModal(issue = null, defaultStage = null) {
     el('tm-effort').value           = '';
     el('tm-completion-notes').value = '';
     el('tm-effort-toggle').querySelectorAll('.effort-unit').forEach((b, i) => b.classList.toggle('active', i === 0));
+    el('tm-tc-company').value = '';
+    el('tm-tc-contact').value = '';
+    el('tm-tc-email').value   = '';
+    el('tm-tc-phone').value   = '';
+    syncTaskClientFromProject(false);
   }
 
   syncCompletionNotesVisibility();
@@ -1098,6 +1160,33 @@ function syncCompletionNotesVisibility() {
   el('tm-completion-notes-group').classList.toggle('hidden', !isDelivered && !hasNotes);
   const completeBtn = el('tm-mark-complete');
   if (completeBtn) completeBtn.classList.toggle('hidden', isDelivered || !modal.editingIssue);
+}
+
+function syncTaskClientFromProject(preserveExisting = false) {
+  const msNum = el('tm-milestone').value;
+  const ms = msNum ? state.milestones.find(m => String(m.number) === msNum) : null;
+  const projMeta = ms ? parseProjectMeta(ms.description || '') : null;
+  const section = el('tm-client-section');
+
+  if (projMeta && (projMeta.client || projMeta.contact || projMeta.email || projMeta.phone)) {
+    section.classList.remove('hidden');
+    if (!preserveExisting) {
+      el('tm-tc-company').value  = projMeta.client   || '';
+      el('tm-tc-contact').value  = projMeta.contact  || '';
+      el('tm-tc-email').value    = projMeta.email    || '';
+      el('tm-tc-phone').value    = projMeta.phone    || '';
+    }
+  } else {
+    const hasTaskClient = el('tm-tc-company').value || el('tm-tc-contact').value || el('tm-tc-email').value || el('tm-tc-phone').value;
+    if (hasTaskClient) section.classList.remove('hidden');
+    else section.classList.add('hidden');
+    if (!preserveExisting && !hasTaskClient) {
+      el('tm-tc-company').value = '';
+      el('tm-tc-contact').value = '';
+      el('tm-tc-email').value   = '';
+      el('tm-tc-phone').value   = '';
+    }
+  }
 }
 
 function closeTaskModal() {
@@ -1149,9 +1238,16 @@ async function saveTask() {
   const githubLogins   = modal.selectedAssignees.filter(m => m.type === 'github').map(m => m.login);
   const localNames     = modal.selectedAssignees.filter(m => m.type === 'local').map(m => m.name);
 
+  const taskClientInfo = {
+    taskClient:  el('tm-tc-company').value.trim(),
+    taskContact: el('tm-tc-contact').value.trim(),
+    taskEmail:   el('tm-tc-email').value.trim(),
+    taskPhone:   el('tm-tc-phone').value.trim(),
+  };
+
   const payload = {
     title,
-    body:      buildIssueBody(due, effortStr, localNames, bodyText, completionText),
+    body:      buildIssueBody(due, effortStr, localNames, bodyText, completionText, taskClientInfo),
     labels,
     assignees: githubLogins,
   };
@@ -1225,7 +1321,7 @@ function handleCloseIssue() {
 // Project (Milestone) Modal
 // ============================================================
 
-function openProjectModal(ms = null) {
+function openProjectModal(ms = null, clientPrefill = null) {
   modal.editingProject = ms;
   const meta = parseProjectMeta(ms ? (ms.description || '') : '');
   el('pm-heading').textContent = ms ? 'Edit Project' : 'New Project';
@@ -1242,8 +1338,47 @@ function openProjectModal(ms = null) {
   el('pm-county').value   = meta.county;
   el('pm-province').value = meta.province;
   el('pm-error').classList.add('hidden');
+
+  refreshClientRosterSelect();
+  // If a client is already saved in the project's description, select them in the roster
+  if (meta.client) {
+    const clients = getClients();
+    const match = clients.find(c => c.company.toLowerCase() === meta.client.toLowerCase());
+    if (match) el('pm-client-roster').value = match.id;
+  }
+  // If opened from client roster with a prefill, override the fields
+  if (clientPrefill) {
+    el('pm-client').value    = clientPrefill.company  || '';
+    el('pm-contact').value   = clientPrefill.contact  || '';
+    el('pm-email').value     = clientPrefill.email    || '';
+    el('pm-phone').value     = clientPrefill.phone    || '';
+    if (clientPrefill.id) el('pm-client-roster').value = clientPrefill.id;
+  }
+
   el('project-modal').classList.remove('hidden');
   setTimeout(() => el('pm-name').focus(), 50);
+}
+
+function refreshClientRosterSelect() {
+  const sel = el('pm-client-roster');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">— Enter manually or select —</option>';
+  getClients().sort((a, b) => a.company.localeCompare(b.company)).forEach(c => {
+    const o = document.createElement('option');
+    o.value = c.id; o.textContent = c.company + (c.contact ? ` — ${c.contact}` : '');
+    sel.appendChild(o);
+  });
+  if (current) sel.value = current;
+}
+
+function fillProjectClientFromRoster(clientId) {
+  if (!clientId) return;
+  const c = getClients().find(x => x.id === clientId);
+  if (!c) return;
+  el('pm-client').value  = c.company;
+  el('pm-contact').value = c.contact;
+  el('pm-email').value   = c.email;
+  el('pm-phone').value   = c.phone;
 }
 
 function parseProjectMeta(desc) {
@@ -1485,6 +1620,134 @@ async function addTeamMember(name, githubLogin) {
   } finally {
     btn.disabled = false; btn.textContent = 'Add Member';
   }
+}
+
+// ============================================================
+// Client Modal
+// ============================================================
+
+function openClientModal(afterAddCallback = null) {
+  renderClientList();
+  el('clt-add-company').value = '';
+  el('clt-add-contact').value = '';
+  el('clt-add-email').value   = '';
+  el('clt-add-phone').value   = '';
+  el('clt-error').classList.add('hidden');
+  el('client-modal').classList.remove('hidden');
+  el('client-modal')._afterAdd = afterAddCallback;
+  setTimeout(() => el('clt-add-company').focus(), 50);
+}
+
+function closeClientModal() {
+  el('client-modal').classList.add('hidden');
+  el('client-modal')._afterAdd = null;
+}
+
+function renderClientList() {
+  const list = el('client-list');
+  list.innerHTML = '';
+  const clients = getClients().sort((a, b) => a.company.localeCompare(b.company));
+  if (!clients.length) {
+    list.innerHTML = '<p class="help-text" style="color:var(--gray-400)">No clients yet — add one below.</p>';
+    return;
+  }
+  clients.forEach(c => {
+    const row = document.createElement('div');
+    row.className = 'client-row';
+    row.dataset.id = c.id;
+
+    const info = document.createElement('div'); info.className = 'client-row-info';
+    const company = document.createElement('div'); company.className = 'client-row-company'; company.textContent = c.company;
+    info.appendChild(company);
+    const sub = document.createElement('div'); sub.className = 'client-row-sub';
+    if (c.contact) { const s = document.createElement('span'); s.textContent = c.contact; sub.appendChild(s); }
+    if (c.email)   { const a = document.createElement('a'); a.href=`mailto:${c.email}`; a.textContent=c.email; a.addEventListener('click',e=>e.stopPropagation()); sub.appendChild(a); }
+    if (c.phone)   { const a = document.createElement('a'); a.href=`tel:${c.phone.replace(/\s/g,'')}`; a.textContent=c.phone; a.addEventListener('click',e=>e.stopPropagation()); sub.appendChild(a); }
+    if (sub.children.length) info.appendChild(sub);
+
+    const btns = document.createElement('div'); btns.className = 'client-row-btns';
+
+    const projBtn = document.createElement('button');
+    projBtn.type='button'; projBtn.className='btn btn-ghost btn-sm'; projBtn.textContent='New Project';
+    projBtn.addEventListener('click', () => { closeClientModal(); openProjectModal(null, c); });
+
+    const editBtn = document.createElement('button');
+    editBtn.type='button'; editBtn.className='btn btn-ghost btn-sm'; editBtn.textContent='Edit';
+    editBtn.addEventListener('click', e => { e.stopPropagation(); openClientEdit(row, c); });
+
+    const delBtn = document.createElement('button');
+    delBtn.type='button'; delBtn.className='btn btn-ghost btn-sm client-del-btn'; delBtn.textContent='✕';
+    delBtn.title='Remove client';
+    delBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      deleteClient(c.id); renderClientList(); refreshClientRosterSelect();
+    });
+
+    btns.appendChild(projBtn); btns.appendChild(editBtn); btns.appendChild(delBtn);
+    row.appendChild(info); row.appendChild(btns);
+    list.appendChild(row);
+  });
+}
+
+function openClientEdit(row, client) {
+  if (row.querySelector('.client-edit-form')) return; // already open
+  const btnsEl = row.querySelector('.client-row-btns');
+  btnsEl.style.display = 'none';
+
+  const form = document.createElement('div'); form.className = 'client-edit-form';
+  const makeField = (label, type, value, id) => {
+    const g = document.createElement('div'); g.className = 'field-group';
+    const l = document.createElement('label'); l.className = 'field-label'; l.textContent = label;
+    const i = document.createElement('input'); i.className = 'field-input'; i.type = type; i.value = value; i.id = id;
+    g.appendChild(l); g.appendChild(i); return g;
+  };
+  const row1 = document.createElement('div'); row1.className = 'field-row';
+  row1.appendChild(makeField('Company', 'text', client.company, `ce-company-${client.id}`));
+  row1.appendChild(makeField('Contact', 'text', client.contact, `ce-contact-${client.id}`));
+  const row2 = document.createElement('div'); row2.className = 'field-row';
+  row2.appendChild(makeField('Email', 'email', client.email, `ce-email-${client.id}`));
+  row2.appendChild(makeField('Phone', 'tel', client.phone, `ce-phone-${client.id}`));
+
+  const actions = document.createElement('div'); actions.className = 'client-edit-actions';
+  const cancel = document.createElement('button'); cancel.type='button'; cancel.className='btn btn-ghost btn-sm'; cancel.textContent='Cancel';
+  cancel.addEventListener('click', () => { form.remove(); btnsEl.style.display=''; });
+  const save = document.createElement('button'); save.type='button'; save.className='btn btn-primary btn-sm'; save.textContent='Save';
+  save.addEventListener('click', () => {
+    const company = document.getElementById(`ce-company-${client.id}`).value.trim();
+    if (!company) return;
+    updateClient(client.id, {
+      company,
+      contact: document.getElementById(`ce-contact-${client.id}`).value.trim(),
+      email:   document.getElementById(`ce-email-${client.id}`).value.trim(),
+      phone:   document.getElementById(`ce-phone-${client.id}`).value.trim(),
+    });
+    renderClientList(); refreshClientRosterSelect();
+  });
+  actions.appendChild(cancel); actions.appendChild(save);
+  form.appendChild(row1); form.appendChild(row2); form.appendChild(actions);
+  row.appendChild(form);
+}
+
+function handleAddClient() {
+  const company = el('clt-add-company').value.trim();
+  if (!company) { showError('clt-error', 'Company name is required.'); el('clt-add-company').focus(); return; }
+  const client = addClient({
+    company,
+    contact: el('clt-add-contact').value.trim(),
+    email:   el('clt-add-email').value.trim(),
+    phone:   el('clt-add-phone').value.trim(),
+  });
+  el('clt-add-company').value = '';
+  el('clt-add-contact').value = '';
+  el('clt-add-email').value   = '';
+  el('clt-add-phone').value   = '';
+  el('clt-error').classList.add('hidden');
+  renderClientList();
+  refreshClientRosterSelect();
+  if (typeof el('client-modal')._afterAdd === 'function') {
+    el('client-modal')._afterAdd(client);
+  }
+  toast(`Client "${client.company}" added`, 'success');
 }
 
 // ============================================================
@@ -1942,9 +2205,10 @@ function parseDueDate(body) {
 }
 
 function parseBodyParts(body) {
-  if (!body) return { due: null, effort: null, localAssignees: [], description: '', completionNotes: '' };
+  if (!body) return { due: null, effort: null, localAssignees: [], description: '', completionNotes: '', taskClient: '', taskContact: '', taskEmail: '', taskPhone: '' };
   let text = body;
-  let due = null; let effort = null; let completionNotes = '';
+  let due = null, effort = null, completionNotes = '';
+  let taskClient = '', taskContact = '', taskEmail = '', taskPhone = '';
   const localAssignees = [];
   const cnSep = '\n\n---\n**Completion Notes:**\n';
   const cnIdx = text.indexOf(cnSep);
@@ -1952,17 +2216,26 @@ function parseBodyParts(body) {
     completionNotes = text.slice(cnIdx + cnSep.length).trim();
     text = text.slice(0, cnIdx);
   }
-  text = text.replace(/^Due:\s*(\d{4}-\d{2}-\d{2})[ \t]*\r?\n?/m,   (_, d) => { due = d; return ''; });
-  text = text.replace(/^Effort:\s*(.+)[ \t]*\r?\n?/m, (_, e) => { effort = e.trim(); return ''; });
-  text = text.replace(/^Local-Assignee:\s*(.+)[ \t]*\r?\n?/mg, (_, n) => { localAssignees.push(n.trim()); return ''; });
-  return { due, effort, localAssignees, description: text.trim(), completionNotes };
+  text = text.replace(/^Due:\s*(\d{4}-\d{2}-\d{2})[ \t]*\r?\n?/m,   (_, v) => { due = v; return ''; });
+  text = text.replace(/^Effort:\s*(.+)[ \t]*\r?\n?/m,               (_, v) => { effort = v.trim(); return ''; });
+  text = text.replace(/^Local-Assignee:\s*(.+)[ \t]*\r?\n?/mg,      (_, v) => { localAssignees.push(v.trim()); return ''; });
+  text = text.replace(/^Task-Client:\s*(.+)[ \t]*\r?\n?/m,          (_, v) => { taskClient  = v.trim(); return ''; });
+  text = text.replace(/^Task-Contact:\s*(.+)[ \t]*\r?\n?/m,         (_, v) => { taskContact = v.trim(); return ''; });
+  text = text.replace(/^Task-Email:\s*(.+)[ \t]*\r?\n?/m,           (_, v) => { taskEmail   = v.trim(); return ''; });
+  text = text.replace(/^Task-Phone:\s*(.+)[ \t]*\r?\n?/m,           (_, v) => { taskPhone   = v.trim(); return ''; });
+  return { due, effort, localAssignees, description: text.trim(), completionNotes, taskClient, taskContact, taskEmail, taskPhone };
 }
 
-function buildIssueBody(due, effort, localAssigneeNames, description, completionNotes = '') {
+function buildIssueBody(due, effort, localAssigneeNames, description, completionNotes = '', taskClientInfo = {}) {
+  const { taskClient, taskContact, taskEmail, taskPhone } = taskClientInfo;
   const metaLines = [];
-  if (due)    metaLines.push(`Due: ${due}`);
-  if (effort) metaLines.push(`Effort: ${effort}`);
+  if (due)          metaLines.push(`Due: ${due}`);
+  if (effort)       metaLines.push(`Effort: ${effort}`);
   localAssigneeNames.forEach(n => metaLines.push(`Local-Assignee: ${n}`));
+  if (taskClient)   metaLines.push(`Task-Client: ${taskClient}`);
+  if (taskContact)  metaLines.push(`Task-Contact: ${taskContact}`);
+  if (taskEmail)    metaLines.push(`Task-Email: ${taskEmail}`);
+  if (taskPhone)    metaLines.push(`Task-Phone: ${taskPhone}`);
   const parts = [];
   if (metaLines.length) parts.push(metaLines.join('\n'));
   if (description)      parts.push(description);

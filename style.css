@@ -1074,6 +1074,35 @@ a { color: var(--green-dark); }
 .team-gh-link:hover { color: var(--green-dark); background: var(--green-bg); }
 .team-empty { color: var(--gray-400); font-size: 13px; padding: 12px 0; text-align: center; }
 
+/* Client roster */
+.client-list { display: flex; flex-direction: column; gap: 8px; }
+.client-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+}
+.client-row-info { flex: 1; min-width: 0; }
+.client-row-company { font-size: 13px; font-weight: 600; color: var(--gray-800); margin-bottom: 2px; }
+.client-row-sub {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--gray-500);
+}
+.client-row-sub a { color: var(--green-dark); text-decoration: none; }
+.client-row-sub a:hover { text-decoration: underline; }
+.client-row-btns { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.client-del-btn { color: var(--gray-400) !important; }
+.client-del-btn:hover { color: var(--red) !important; }
+.client-edit-form { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.client-edit-actions { display: flex; gap: 6px; justify-content: flex-end; }
+
 /* ============================================================
    SETUP MODAL (legacy / first-run)
    ============================================================ */
