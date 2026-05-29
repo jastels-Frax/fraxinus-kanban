@@ -749,7 +749,11 @@ function buildColumn(stage, issues) {
       if (ib !== -1) return 1;
       const pa = PRIORITY_LABELS.findIndex(p => a.labels.some(l => l.name === p));
       const pb = PRIORITY_LABELS.findIndex(p => b.labels.some(l => l.name === p));
-      return (pa === -1 ? 99 : pa) - (pb === -1 ? 99 : pb);
+      const pd = (pa === -1 ? 99 : pa) - (pb === -1 ? 99 : pb);
+      if (pd !== 0) return pd;
+      const da = parseDueDate(a.body) || 'zzzz';
+      const db = parseDueDate(b.body) || 'zzzz';
+      return da < db ? -1 : da > db ? 1 : 0;
     })
     .forEach(issue => body.appendChild(buildCard(issue)));
   col.appendChild(body);
