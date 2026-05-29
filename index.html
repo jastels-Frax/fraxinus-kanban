@@ -247,6 +247,15 @@
           <label class="field-label" for="team-add-github">GitHub Username <span class="optional">(optional)</span></label>
           <input class="field-input" type="text" id="team-add-github" placeholder="e.g. jsmith — leave blank if not on GitHub" autocomplete="off" />
         </div>
+        <div class="field-group" style="margin-bottom:12px">
+          <label class="field-label">Profile Photo <span class="optional">(optional)</span></label>
+          <div class="photo-row">
+            <div class="photo-preview-thumb" id="team-add-photo-preview"></div>
+            <label class="btn btn-ghost btn-sm" for="team-add-photo-input" style="cursor:pointer">Choose Photo</label>
+            <button type="button" class="btn btn-ghost btn-sm hidden" id="team-add-photo-clear">Remove</button>
+            <input type="file" id="team-add-photo-input" accept="image/*" style="display:none" />
+          </div>
+        </div>
         <button type="button" class="btn btn-primary" id="team-add-btn">Add Member</button>
       </div>
       <div id="team-error" class="error-msg hidden"></div>

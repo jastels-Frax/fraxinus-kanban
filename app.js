@@ -82,6 +82,8 @@ const modal = {
   pickerOpen:        false,
 };
 
+let pendingAvatar = null; // base64 data URL staged for new team member
+
 // ============================================================
 // Bootstrap
 // ============================================================
@@ -181,6 +183,24 @@ function bindUIEvents() {
   });
   el('team-add-github').addEventListener('keydown', e => {
     if (e.key === 'Enter') addTeamMember(el('team-add-name').value, el('team-add-github').value);
+  });
+  el('team-add-photo-input').addEventListener('change', async () => {
+    const file = el('team-add-photo-input').files[0];
+    if (!file) return;
+    try {
+      pendingAvatar = await resizeImageToDataUrl(file);
+      const thumb = el('team-add-photo-preview');
+      thumb.innerHTML = '';
+      const img = document.createElement('img'); img.src = pendingAvatar;
+      thumb.appendChild(img);
+      el('team-add-photo-clear').classList.remove('hidden');
+    } catch (_) { toast('Could not load photo', 'error'); }
+  });
+  el('team-add-photo-clear').addEventListener('click', () => {
+    pendingAvatar = null;
+    el('team-add-photo-input').value = '';
+    el('team-add-photo-preview').innerHTML = '';
+    el('team-add-photo-clear').classList.add('hidden');
   });
 
   // Global keyboard shortcuts
@@ -438,14 +458,19 @@ function parseLocalAssigneeNames(body) {
 // ============================================================
 
 function makeMemberAvatar(member, sizePx = 18) {
-  if (member.type === 'github') {
+  if (member.type === 'github' || member.avatar) {
     const img = document.createElement('img');
     img.className = 'avatar';
     img.style.cssText = `width:${sizePx}px;height:${sizePx}px;flex-shrink:0`;
-    const base = member.avatar_url || `https://github.com/${member.login}.png`;
-    const sep  = base.includes('?') ? '&' : '?';
-    img.src = `${base}${sep}s=${sizePx * 2}`;
-    img.alt = member.name; img.loading = 'lazy';
+    if (member.type === 'github') {
+      const base = member.avatar_url || `https://github.com/${member.login}.png`;
+      const sep  = base.includes('?') ? '&' : '?';
+      img.src = `${base}${sep}s=${sizePx * 2}`;
+      img.loading = 'lazy';
+    } else {
+      img.src = member.avatar;
+    }
+    img.alt = member.name;
     return img;
   }
   const span = document.createElement('span');
@@ -1056,6 +1081,10 @@ async function saveProject() {
 
 function openTeamModal() {
   el('team-add-name').value = ''; el('team-add-github').value = '';
+  el('team-add-photo-input').value = '';
+  el('team-add-photo-preview').innerHTML = '';
+  el('team-add-photo-clear').classList.add('hidden');
+  pendingAvatar = null;
   el('team-error').classList.add('hidden');
   renderTeamList();
   el('team-modal').classList.remove('hidden');
@@ -1073,7 +1102,30 @@ function renderTeamList() {
   list.innerHTML = '';
   members.forEach(m => {
     const row = document.createElement('div'); row.className = 'team-member';
-    row.appendChild(makeMemberAvatar(m, 32));
+
+    if (m.type === 'local') {
+      // Avatar with click-to-update-photo overlay
+      const wrap = document.createElement('div'); wrap.className = 'team-avatar-wrap'; wrap.title = 'Click to update photo';
+      wrap.appendChild(makeMemberAvatar(m, 32));
+      const editBtn = document.createElement('span'); editBtn.className = 'team-avatar-edit-btn'; editBtn.textContent = '📷';
+      wrap.appendChild(editBtn);
+      const photoInput = document.createElement('input');
+      photoInput.type = 'file'; photoInput.accept = 'image/*'; photoInput.style.display = 'none';
+      photoInput.addEventListener('change', async () => {
+        if (!photoInput.files[0]) return;
+        try {
+          const dataUrl = await resizeImageToDataUrl(photoInput.files[0]);
+          const team = getLocalTeam();
+          const idx = team.findIndex(t => t.id === m.id);
+          if (idx >= 0) { team[idx].avatar = dataUrl; saveLocalTeam(team); renderTeamList(); }
+        } catch (_) { toast('Could not load photo', 'error'); }
+      });
+      wrap.appendChild(photoInput);
+      wrap.addEventListener('click', () => photoInput.click());
+      row.appendChild(wrap);
+    } else {
+      row.appendChild(makeMemberAvatar(m, 32));
+    }
 
     const name = document.createElement('span');
     name.className = 'team-member-name'; name.textContent = m.name;
@@ -1090,7 +1142,6 @@ function renderTeamList() {
       const tag = document.createElement('span'); tag.className = 'team-local-tag'; tag.textContent = 'Local';
       row.appendChild(tag);
 
-      // Allow removing local members
       const rmBtn = document.createElement('button');
       rmBtn.type = 'button'; rmBtn.className = 'btn btn-ghost team-remove-btn';
       rmBtn.textContent = '×'; rmBtn.title = 'Remove from team';
@@ -1139,10 +1190,15 @@ async function addTeamMember(name, githubLogin) {
       throw new Error(`"${name}" is already in the team list.`);
     }
     const member = makeLocalMember(name, githubLogin || null);
+    if (pendingAvatar) member.avatar = pendingAvatar;
     existing.push(member);
     saveLocalTeam(existing);
 
     el('team-add-name').value = ''; el('team-add-github').value = '';
+    el('team-add-photo-input').value = '';
+    el('team-add-photo-preview').innerHTML = '';
+    el('team-add-photo-clear').classList.add('hidden');
+    pendingAvatar = null;
     renderTeamList();
     toast(`${name} added to team`, 'success');
   } catch (err) {
@@ -1508,6 +1564,28 @@ async function exportPDF() {
   });
 
   doc.save(`fraxinus-status-${today.toISOString().slice(0, 10)}.pdf`);
+}
+
+function resizeImageToDataUrl(file, maxPx = 160) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.82));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 function loadImageAsDataUrl(src) {
