@@ -81,6 +81,47 @@
   </div>
 </div>
 
+<!-- ===================== TASK VIEW MODAL (read-only detail) ===================== -->
+<div id="task-view-modal" class="modal-overlay hidden">
+  <div class="modal modal-wide">
+    <div class="modal-topbar">
+      <div class="tv-topbar-meta">
+        <span id="tv-number" class="issue-badge hidden"></span>
+        <span id="tv-stage-chip" class="tv-stage-chip"></span>
+      </div>
+      <button class="modal-x" id="tv-x" aria-label="Close">&#x2715;</button>
+    </div>
+    <div class="modal-content tv-content">
+      <h2 id="tv-title" class="tv-title"></h2>
+      <div id="tv-chips" class="tv-chips"></div>
+      <div id="tv-assignees-row" class="tv-assignees-row hidden"></div>
+
+      <div id="tv-description-section" class="tv-section hidden">
+        <div class="tv-section-label">Description</div>
+        <div id="tv-description-body" class="tv-section-body"></div>
+      </div>
+
+      <div id="tv-completion-section" class="tv-section tv-completion hidden">
+        <div class="tv-section-label">&#128203; Completion Notes</div>
+        <div id="tv-completion-body" class="tv-section-body"></div>
+      </div>
+
+      <div id="tv-project-section" class="tv-section hidden">
+        <div class="tv-section-label">Project</div>
+        <div id="tv-project-body" class="tv-project-body"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <a id="tv-gh-link" href="#" target="_blank" rel="noopener" class="modal-gh-link hidden">View on GitHub &#8599;</a>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="tv-close">Close</button>
+        <button type="button" class="btn btn-success hidden" id="tv-mark-complete">&#10003; Mark as Complete</button>
+        <button type="button" class="btn btn-primary" id="tv-edit">&#9998; Edit Task</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ===================== TASK MODAL (create / edit) ===================== -->
 <div id="task-modal" class="modal-overlay hidden">
   <div class="modal modal-wide">
@@ -173,8 +214,39 @@
 
       <!-- Description -->
       <div class="field-group">
-        <label class="field-label" for="tm-body">Description / Notes</label>
+        <label class="field-label" for="tm-body">Description</label>
         <textarea class="field-textarea" id="tm-body" rows="4" placeholder="Additional context, references, field notes&hellip;"></textarea>
+      </div>
+
+      <!-- Task-level Client Contact (auto-populated from project, editable) -->
+      <div id="tm-client-section" class="hidden">
+        <div class="pm-section-label" style="margin-top:4px">Client Contact <span class="optional">(from project — editable per task)</span></div>
+        <div class="field-row">
+          <div class="field-group">
+            <label class="field-label" for="tm-tc-company">Company</label>
+            <input class="field-input" type="text" id="tm-tc-company" placeholder="Company name" />
+          </div>
+          <div class="field-group">
+            <label class="field-label" for="tm-tc-contact">Contact Name</label>
+            <input class="field-input" type="text" id="tm-tc-contact" placeholder="Contact person" />
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field-group">
+            <label class="field-label" for="tm-tc-email">Email</label>
+            <input class="field-input" type="email" id="tm-tc-email" placeholder="Email" />
+          </div>
+          <div class="field-group">
+            <label class="field-label" for="tm-tc-phone">Phone</label>
+            <input class="field-input" type="tel" id="tm-tc-phone" placeholder="Phone" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Completion Notes (shown only when stage = Delivered / Closed) -->
+      <div class="field-group hidden" id="tm-completion-notes-group">
+        <label class="field-label" for="tm-completion-notes">Completion Notes <span class="optional">(optional)</span></label>
+        <textarea class="field-textarea" id="tm-completion-notes" rows="3" placeholder="What was accomplished? Any final observations or outcomes&hellip;"></textarea>
       </div>
 
       <div id="tm-error" class="error-msg hidden"></div>
@@ -184,8 +256,81 @@
       <a id="tm-gh-link" href="#" target="_blank" rel="noopener" class="modal-gh-link hidden">View on GitHub &#8599;</a>
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" id="tm-cancel">Cancel</button>
-        <button type="button" class="btn btn-danger hidden" id="tm-close-issue">Close Issue</button>
+        <button type="button" class="btn btn-danger hidden" id="tm-close-issue">Delete Task</button>
+        <button type="button" class="btn btn-success hidden" id="tm-mark-complete">&#10003; Mark as Complete</button>
         <button type="button" class="btn btn-primary" id="tm-save">Create Task</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== COMPLETION NOTES MODAL ===================== -->
+<div id="completion-modal" class="modal-overlay modal-stacked hidden">
+  <div class="modal modal-sm">
+    <div class="modal-topbar">
+      <span class="modal-topbar-left">&#10003; Mark as Completed</span>
+      <button class="modal-x" id="cn-x" aria-label="Close">&#x2715;</button>
+    </div>
+    <div class="modal-content">
+      <div class="cn-task-name" id="cn-task-title"></div>
+      <div class="field-group">
+        <label class="field-label" for="cn-notes">Completion Notes <span class="optional">(optional)</span></label>
+        <textarea class="field-textarea" id="cn-notes" rows="4" placeholder="What was accomplished? Any final observations or outcomes&hellip;"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <div class="modal-actions" style="width:100%;justify-content:flex-end">
+        <button type="button" class="btn btn-ghost" id="cn-cancel">Cancel</button>
+        <button type="button" class="btn btn-primary" id="cn-confirm">&#10003; Mark Complete</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== PROJECT VIEW MODAL ===================== -->
+<div id="project-view-modal" class="modal-overlay modal-stacked hidden">
+  <div class="modal modal-wide">
+    <div class="modal-topbar">
+      <div class="modal-topbar-left">
+        <span id="pv-heading" class="modal-topbar-left"></span>
+      </div>
+      <button class="modal-x" id="pv-x" aria-label="Close">&#x2715;</button>
+    </div>
+    <div class="modal-content pv-content">
+      <h2 id="pv-title" class="tv-title"></h2>
+      <div id="pv-meta-row" class="tv-chips"></div>
+
+      <div id="pv-description-section" class="tv-section hidden">
+        <div class="tv-section-label">Description</div>
+        <div id="pv-description-body" class="tv-section-body"></div>
+      </div>
+
+      <div id="pv-client-section" class="tv-section hidden">
+        <div class="tv-section-label">Client</div>
+        <div id="pv-client-body" class="tv-project-body"></div>
+      </div>
+
+      <div id="pv-location-section" class="tv-section hidden">
+        <div class="tv-section-label">&#128205; Location</div>
+        <div id="pv-location-body" class="tv-section-body"></div>
+      </div>
+
+      <div id="pv-tasks-section" class="tv-section hidden">
+        <div class="tv-section-label">Tasks by Stage</div>
+        <div id="pv-tasks-body" class="project-stages pv-stages-body"></div>
+      </div>
+
+      <div id="pv-map-section" class="tv-section hidden">
+        <div class="tv-section-label">&#128506; Felt Map</div>
+        <a id="pv-map-link" href="#" target="_blank" rel="noopener" class="project-felt-open-link">&#8599; Open in Felt</a>
+        <iframe id="pv-map-iframe" class="pv-map-iframe" src="" title="Felt Map" frameborder="0" allowfullscreen></iframe>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="pv-close">Close</button>
+        <button type="button" class="btn btn-secondary" id="pv-show-tasks">&#128195; Show Tasks</button>
+        <button type="button" class="btn btn-primary" id="pv-edit">&#9998; Edit Project</button>
       </div>
     </div>
   </div>
@@ -193,7 +338,7 @@
 
 <!-- ===================== PROJECT MODAL (create milestone) ===================== -->
 <div id="project-modal" class="modal-overlay modal-stacked hidden">
-  <div class="modal modal-sm">
+  <div class="modal">
     <div class="modal-topbar">
       <span class="modal-topbar-left" id="pm-heading">New Project</span>
       <button class="modal-x" id="pm-x" aria-label="Close">&#x2715;</button>
@@ -203,24 +348,122 @@
         <label class="field-label" for="pm-name">Project Name <span class="req">*</span></label>
         <input class="field-input" type="text" id="pm-name" placeholder="e.g. Hope Brook Rare Plant Survey" />
       </div>
-      <div class="field-group">
-        <label class="field-label" for="pm-client">Client</label>
-        <input class="field-input" type="text" id="pm-client" placeholder="e.g. Shelburne Properties" />
+      <div class="field-row">
+        <div class="field-group">
+          <label class="field-label" for="pm-desc">Description</label>
+          <input class="field-input" type="text" id="pm-desc" placeholder="Optional description" />
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="pm-due">Target Completion Date</label>
+          <input class="field-input" type="date" id="pm-due" />
+        </div>
       </div>
-      <div class="field-group">
-        <label class="field-label" for="pm-desc">Description</label>
-        <input class="field-input" type="text" id="pm-desc" placeholder="Optional description" />
+
+      <div class="pm-section-label">Client</div>
+      <div class="field-row" style="align-items:flex-end;gap:8px">
+        <div class="field-group field-grow">
+          <label class="field-label" for="pm-client-roster">Select from Client Roster</label>
+          <select class="field-select" id="pm-client-roster">
+            <option value="">— Enter manually or select —</option>
+          </select>
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm" id="pm-new-client-btn" style="flex-shrink:0;margin-bottom:1px">+ Add Client</button>
       </div>
-      <div class="field-group">
-        <label class="field-label" for="pm-due">Target Completion Date</label>
-        <input class="field-input" type="date" id="pm-due" />
+      <div class="field-row">
+        <div class="field-group">
+          <label class="field-label" for="pm-client">Company / Organization</label>
+          <input class="field-input" type="text" id="pm-client" placeholder="e.g. Shelburne Properties" />
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="pm-contact">Primary Contact Name</label>
+          <input class="field-input" type="text" id="pm-contact" placeholder="e.g. Jane Smith" />
+        </div>
       </div>
+      <div class="field-row">
+        <div class="field-group">
+          <label class="field-label" for="pm-email">Email</label>
+          <input class="field-input" type="email" id="pm-email" placeholder="e.g. jane@example.com" />
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="pm-phone">Phone</label>
+          <input class="field-input" type="tel" id="pm-phone" placeholder="e.g. 902-555-1234" />
+        </div>
+      </div>
+
+      <div class="pm-section-label">Location</div>
+      <div class="field-group">
+        <label class="field-label" for="pm-gps">GPS Coordinates</label>
+        <input class="field-input" type="text" id="pm-gps" placeholder="e.g. 44.1234, -63.5678" />
+      </div>
+      <div class="field-row">
+        <div class="field-group">
+          <label class="field-label" for="pm-town">Town</label>
+          <input class="field-input" type="text" id="pm-town" placeholder="e.g. Shelburne" />
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="pm-county">County</label>
+          <input class="field-input" type="text" id="pm-county" placeholder="e.g. Shelburne County" />
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="pm-province">Province</label>
+          <input class="field-input" type="text" id="pm-province" placeholder="e.g. Nova Scotia" />
+        </div>
+      </div>
+
+      <div class="pm-section-label">&#128506; Felt Map</div>
+      <div class="field-group">
+        <label class="field-label" for="pm-felt">Felt Map URL</label>
+        <input class="field-input" type="url" id="pm-felt" placeholder="https://felt.com/map/..." />
+      </div>
+
       <div id="pm-error" class="error-msg hidden"></div>
     </div>
     <div class="modal-footer">
       <div class="modal-actions" style="width:100%;justify-content:flex-end">
         <button type="button" class="btn btn-ghost" id="pm-cancel">Cancel</button>
         <button type="button" class="btn btn-primary" id="pm-save">Create Project</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== CLIENT MODAL ===================== -->
+<div id="client-modal" class="modal-overlay modal-stacked-top hidden">
+  <div class="modal modal-wide">
+    <div class="modal-topbar">
+      <span class="modal-topbar-left">&#127970; Client Roster</span>
+      <button class="modal-x" id="clt-x" aria-label="Close">&#x2715;</button>
+    </div>
+    <div class="modal-content">
+      <div id="client-list" class="client-list"></div>
+
+      <div class="pm-section-label" style="margin-top:18px">Add New Client</div>
+      <div class="field-row">
+        <div class="field-group">
+          <label class="field-label" for="clt-add-company">Company / Organization <span class="req">*</span></label>
+          <input class="field-input" type="text" id="clt-add-company" placeholder="e.g. Shelburne Properties" autocomplete="off" />
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="clt-add-contact">Primary Contact Name</label>
+          <input class="field-input" type="text" id="clt-add-contact" placeholder="e.g. Jane Smith" autocomplete="off" />
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field-group">
+          <label class="field-label" for="clt-add-email">Email</label>
+          <input class="field-input" type="email" id="clt-add-email" placeholder="e.g. jane@example.com" />
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="clt-add-phone">Phone</label>
+          <input class="field-input" type="tel" id="clt-add-phone" placeholder="e.g. 902-555-1234" />
+        </div>
+      </div>
+      <div id="clt-error" class="error-msg hidden"></div>
+    </div>
+    <div class="modal-footer">
+      <div class="modal-actions" style="width:100%;justify-content:flex-end">
+        <button type="button" class="btn btn-ghost" id="clt-done">Done</button>
+        <button type="button" class="btn btn-primary" id="clt-add-btn">Add Client</button>
       </div>
     </div>
   </div>
@@ -247,6 +490,15 @@
           <label class="field-label" for="team-add-github">GitHub Username <span class="optional">(optional)</span></label>
           <input class="field-input" type="text" id="team-add-github" placeholder="e.g. jsmith — leave blank if not on GitHub" autocomplete="off" />
         </div>
+        <div class="field-group" style="margin-bottom:12px">
+          <label class="field-label">Profile Photo <span class="optional">(optional)</span></label>
+          <div class="photo-row">
+            <div class="photo-preview-thumb" id="team-add-photo-preview"></div>
+            <label class="btn btn-ghost btn-sm" for="team-add-photo-input" style="cursor:pointer">Choose Photo</label>
+            <button type="button" class="btn btn-ghost btn-sm hidden" id="team-add-photo-clear">Remove</button>
+            <input type="file" id="team-add-photo-input" accept="image/*" style="display:none" />
+          </div>
+        </div>
         <button type="button" class="btn btn-primary" id="team-add-btn">Add Member</button>
       </div>
       <div id="team-error" class="error-msg hidden"></div>
@@ -269,6 +521,7 @@
              alt="Fraxinus Environmental &amp; Geomatics"
              height="58" width="auto" style="height:58px;width:auto;display:block;" />
       </div>
+      <div class="header-app-title">Field &amp; Office Board</div>
     </div>
     <div class="header-center">
       <div class="view-toggle">
@@ -278,8 +531,10 @@
       </div>
     </div>
     <div class="header-right">
-      <button id="new-task-btn" class="btn btn-new-task" title="New task (N)">&#xff0b; New Task</button>
-      <button id="team-btn" class="btn btn-header" title="Manage team">&#128101; Team</button>
+      <button id="new-task-btn" class="btn btn-new-task" title="New task (N)">&#xff0b; <span class="btn-label">New Task</span></button>
+      <button id="clients-btn" class="btn btn-header" title="Manage clients">&#127970; <span class="btn-label">Clients</span></button>
+      <button id="team-btn" class="btn btn-header" title="Manage team">&#128101; <span class="btn-label">Team</span></button>
+      <button id="export-pdf-btn" class="btn btn-header" title="Export PDF report">&#128424; <span class="btn-label">Export PDF</span></button>
       <button id="refresh-btn" class="btn btn-header" title="Refresh (R)">&#8635;</button>
       <button id="settings-btn" class="btn btn-header btn-icon" title="Settings">&#9881;</button>
     </div>
@@ -348,6 +603,8 @@
 
 <div id="toast-container" class="toast-container" role="status" aria-live="polite"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
