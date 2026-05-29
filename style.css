@@ -40,6 +40,9 @@ body {
   overflow: hidden;
 }
 
+h1, h2, h3, h4, h5, h6 { font-family: 'Oswald', sans-serif; }
+input, select, button, textarea { font-family: inherit; }
+
 a { color: var(--green-dark); }
 .hidden { display: none !important; }
 
